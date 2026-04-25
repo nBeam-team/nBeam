@@ -34,14 +34,37 @@ export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }
   const chips = buildChips(merged);
   const totalKnown = chips.length;
   const empty = text.trim().length === 0;
-  const sourceLabel = ai.data ? 'gemini' : ai.loading ? 'gemini reading…' : ai.error ? 'pattern match' : 'pattern match';
+  const sourceLabel = ai.loading
+    ? 'gemini reading…'
+    : ai.data
+      ? ai.stale
+        ? 'gemini · stale'
+        : 'gemini · live'
+      : ai.error
+        ? 'pattern match'
+        : 'pattern match';
+  const aiState: 'idle' | 'loading' | 'live' | 'fallback' = ai.loading
+    ? 'loading'
+    : ai.data
+      ? 'live'
+      : ai.error
+        ? 'fallback'
+        : 'idle';
+  const buttonDisabled = empty || ai.loading;
+  const buttonLabel = ai.loading
+    ? 'extracting…'
+    : ai.data
+      ? ai.stale
+        ? 're-extract with gemini'
+        : 'extracted ✓'
+      : 'extract with gemini';
 
   return (
     <div className="space-y-5">
       <div className="flex items-baseline justify-between gap-3 mb-1">
         <div className="flex items-baseline gap-2">
           <p className="nb-eyebrow">describe the customer</p>
-          <AiPill state={ai.loading ? 'loading' : ai.data ? 'live' : ai.error ? 'fallback' : 'idle'} />
+          <AiPill state={aiState} />
         </div>
         <button
           type="button"
@@ -67,6 +90,37 @@ export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }
           focus:border-ink transition-colors duration-200"
         aria-label="Describe the customer in your own words"
       />
+
+      {/* Manual extraction trigger */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={ai.trigger}
+          disabled={buttonDisabled}
+          className="group inline-flex items-center gap-2 pl-3 pr-4 h-9 rounded-full
+            bg-terracotta text-paper-light text-[13px] font-medium
+            transition-all duration-200 ease-standard
+            hover:bg-terracotta-dark hover:-translate-y-0.5
+            active:translate-y-0
+            disabled:bg-ink-300 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+        >
+          <span className="inline-flex items-center justify-center w-5 h-5">
+            {ai.loading ? <ButtonSpinner /> : <SparkleIcon />}
+          </span>
+          <span className="font-serif italic">{buttonLabel}</span>
+        </button>
+        <p className="text-[11px] italic font-serif text-ink-400 max-w-sm leading-snug">
+          {empty
+            ? 'type or paste a description, then click to extract.'
+            : ai.loading
+              ? 'reading your description with Gemini…'
+              : ai.stale
+                ? "you've edited the text — re-extract for updated fields."
+                : ai.data
+                  ? 'fields extracted. edit the text to update, or move on.'
+                  : 'pattern matching is running locally for free; click for AI extraction.'}
+        </p>
+      </div>
 
       <div className="flex items-center justify-between gap-3 min-h-[28px]">
         <div className="flex flex-wrap gap-1.5 items-center">
@@ -206,6 +260,29 @@ function ArrowRightIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 1.5v2.5M8 12v2.5M14.5 8H12M4 8H1.5M12.6 3.4l-1.8 1.8M5.2 10.8l-1.8 1.8M12.6 12.6l-1.8-1.8M5.2 5.2 3.4 3.4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ButtonSpinner() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" className="animate-spin" aria-hidden>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.6" fill="none" opacity="0.3" />
+      <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
     </svg>
   );
 }

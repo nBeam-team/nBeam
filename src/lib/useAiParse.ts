@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { extractFromText } from './gemini';
 import type { ParsedInputs } from './parse';
 
@@ -6,37 +6,54 @@ interface State {
   data: ParsedInputs | null;
   loading: boolean;
   error: string | null;
+  /** The text that was last successfully extracted (used to detect staleness). */
+  extractedText: string | null;
+}
+
+export interface AiExtractResult {
+  data: ParsedInputs | null;
+  loading: boolean;
+  error: string | null;
+  /** True when the textarea has been edited since the last successful extraction. */
+  stale: boolean;
+  /** Manually run an extraction against the current text. */
+  trigger: () => void;
 }
 
 /**
- * Debounced AI extraction hook. Re-runs ~700ms after the user stops typing.
- * Aborts the previous in-flight request when the input changes.
+ * Manual Gemini extraction hook. Caller invokes `trigger()` when the user is
+ * ready (typically a button click). Regex parsing runs independently and
+ * provides an instant fallback for free.
  */
-export function useAiParse(text: string, debounceMs = 700) {
-  const [state, setState] = useState<State>({ data: null, loading: false, error: null });
+export function useAiParse(text: string): AiExtractResult {
+  const [state, setState] = useState<State>({
+    data: null,
+    loading: false,
+    error: null,
+    extractedText: null,
+  });
 
-  useEffect(() => {
-    if (!text.trim()) {
-      setState({ data: null, loading: false, error: null });
-      return;
-    }
+  const trigger = useCallback(() => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
     setState((s) => ({ ...s, loading: true, error: null }));
+    extractFromText(trimmed)
+      .then((data) =>
+        setState({ data, loading: false, error: null, extractedText: trimmed }),
+      )
+      .catch((err: unknown) => {
+        if ((err as { name?: string })?.name === 'AbortError') return;
+        setState((s) => ({ ...s, loading: false, error: String(err) }));
+      });
+  }, [text]);
 
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      extractFromText(text, ctrl.signal)
-        .then((data) => setState({ data, loading: false, error: null }))
-        .catch((err: unknown) => {
-          if ((err as { name?: string })?.name === 'AbortError') return;
-          setState({ data: null, loading: false, error: String(err) });
-        });
-    }, debounceMs);
+  const stale = !!state.extractedText && state.extractedText !== text.trim();
 
-    return () => {
-      ctrl.abort();
-      clearTimeout(timer);
-    };
-  }, [text, debounceMs]);
-
-  return state;
+  return {
+    data: state.data,
+    loading: state.loading,
+    error: state.error,
+    stale,
+    trigger,
+  };
 }
