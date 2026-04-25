@@ -55,11 +55,38 @@ In your Google Cloud project, enable:
 
 For production, restrict the keys by HTTP referrer and by API.
 
-## Setup
+## Repository Setup
 
 ```bash
 git clone https://github.com/nBeam-team/nBeam.git
 cd nBeam
+```
+
+## Backend Setup
+
+### Install Python packages
+
+```bash
+pip install fastapi uvicorn sqlalchemy psycopg2-binary pandas numpy
+```
+
+### Database setup
+
+```bash
+docker run --name postgres-nbeam \
+  -e POSTGRES_PASSWORD=mysecret \
+  -e POSTGRES_DB=renewable_tool \
+  -p 5432:5432 -d postgres
+```
+
+```bash
+cd nbeam_app
+python etl_load.py
+```
+
+## Frontend Setup
+
+```bash
 npm install
 cp .env.local.example .env.local
 ```
@@ -78,7 +105,7 @@ The Tavily and Gemini keys deliberately omit the `VITE_` prefix so they
 stay out of the client bundle. They are read by the Vite middleware
 defined in `vite.config.ts` and injected server-side at request time.
 
-## Run
+### Run
 
 Development:
 
@@ -94,8 +121,19 @@ Production build:
 npm run build
 npm run preview
 ```
+## Run Backend and Frontend Together
 
-## Deployment notes
+Terminal 1 (backend): 
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+```bash
+Terminal 2 (frontend): npm run dev
+```
+
+### Deployment notes
 
 The Vite middleware proxies (`/api/tavily/search`, `/api/gemini/extract`)
 only run during `vite dev`. For a deployed build you need to replicate
@@ -111,7 +149,7 @@ should:
 The frontend uses relative paths to these endpoints, so no client change
 is needed.
 
-## Project structure
+### Webapp structure
 
 ```
 src/
@@ -154,7 +192,7 @@ vite.config.ts                  Vite config + Tavily/Gemini proxies
 tailwind.config.js
 ```
 
-## Calculations
+### Calculations
 
 System sizing and financials live in `src/lib/calc.ts`. The numbers are
 deterministic formulas, not LLM output. Indicative German market rates
