@@ -6,10 +6,11 @@ import { InputForm } from './pages/InputForm';
 import { Loading } from './pages/Loading';
 import { Results } from './pages/Results';
 import { SolarConfig } from './pages/SolarConfig';
+import { ProjectDashboard } from './components/ProjectDashboard'; // NEW
 import type { BuildingInsights } from './lib/google';
 import type { FormInputs, SystemDesign } from './lib/types';
 
-type View = 'form' | 'loading' | 'solar' | 'results';
+type View = 'form' | 'loading' | 'solar' | 'results' | 'dashboard'; // NEW
 
 function App() {
   const [view, setView] = useState<View>('form');
@@ -35,11 +36,29 @@ function App() {
   };
 
   const handleHome = () => setView('form');
+  const handleDashboard = () => setView('dashboard'); // NEW
 
   return (
     <div className="min-h-screen flex flex-col">
       <div data-no-print>
         <Header showHome={view !== 'form'} onHome={handleHome} />
+        {/* Dashboard toggle button – you can move it to Header later */}
+        {view !== 'dashboard' && (
+          <button
+            onClick={handleDashboard}
+            className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-3 py-1 rounded-md text-sm shadow-md hover:bg-blue-700"
+          >
+            📊 Dashboard
+          </button>
+        )}
+        {view === 'dashboard' && (
+          <button
+            onClick={handleHome}
+            className="fixed top-4 right-4 z-50 bg-gray-600 text-white px-3 py-1 rounded-md text-sm shadow-md hover:bg-gray-700"
+          >
+            ✕ Back
+          </button>
+        )}
       </div>
 
       <div className="flex-1 relative">
@@ -105,6 +124,17 @@ function App() {
                 onBackToConfig={() => setView('solar')}
                 onRestart={handleHome}
               />
+            </motion.div>
+          )}
+          {view === 'dashboard' && (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ProjectDashboard />
             </motion.div>
           )}
         </AnimatePresence>
