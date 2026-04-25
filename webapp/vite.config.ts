@@ -2,14 +2,14 @@ import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /**
- * Tavily search proxy. The Vite middleware injects the api_key from
- * process.env (loaded from .env.local) and forwards to api.tavily.com.
+ * Tavily search proxy – only handles POST /api/tavily/search
  */
 function tavilyProxy(apiKey: string | undefined): Plugin {
   return {
     name: 'nbeam-tavily-proxy',
     configureServer(server) {
-      server.middlewares.use('/api/tavily/search', async (req, res) => {
+      server.middlewares.use('/api/tavily/search', async (req, res, next) => {
+        // Only handle this exact path; otherwise pass through
         if (req.method !== 'POST') {
           res.statusCode = 405;
           res.setHeader('Allow', 'POST');
@@ -60,9 +60,7 @@ function tavilyProxy(apiKey: string | undefined): Plugin {
 }
 
 /**
- * Gemini extraction proxy. The middleware adds the prompt, structured
- * response schema, and API key, then forwards to gemini-2.5-flash. The
- * client receives `{ fields }` matching ParsedInputs.
+ * Gemini extraction proxy – only handles POST /api/gemini/extract
  */
 const EXTRACTION_SCHEMA = {
   type: 'object',
@@ -188,5 +186,17 @@ export default defineConfig(({ mode }) => {
       tavilyProxy(env.TAVILY_API_KEY),
       geminiProxy(env.GEMINI_API_KEY),
     ],
+    server: {
+      proxy: {
+        // Forward any /api/* request that is NOT intercepted by custom middleware
+        // to your FastAPI backend on port 8000.
+        '/api': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          // Optional: rewrite if needed, but we keep the same path
+          // rewrite: (path) => path,
+        },
+      },
+    },
   };
 });
