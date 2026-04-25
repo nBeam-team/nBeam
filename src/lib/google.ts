@@ -192,6 +192,97 @@ export async function fetchDataLayers(
   return data;
 }
 
+/* ---------------- Geocoder ---------------- */
+
+const geocodeCache = new Map<string, Address>();
+
+/**
+ * Resolve a free-form address string to an Address with lat/lng. Tries the
+ * Geocoder first (richer results when the Geocoding API is enabled) and
+ * falls back to Places.findPlaceFromQuery, which only needs the Places API.
+ * Cached per query string.
+ */
+export async function geocodeAddress(query: string): Promise<Address | null> {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const cached = geocodeCache.get(trimmed);
+  if (cached) return cached;
+
+  await loadMaps();
+
+  const viaGeocoder = await tryGeocoder(trimmed);
+  if (viaGeocoder) {
+    geocodeCache.set(trimmed, viaGeocoder);
+    return viaGeocoder;
+  }
+
+  const viaPlaces = await tryPlaces(trimmed);
+  if (viaPlaces) {
+    geocodeCache.set(trimmed, viaPlaces);
+    return viaPlaces;
+  }
+
+  return null;
+}
+
+function tryGeocoder(query: string): Promise<Address | null> {
+  return new Promise((resolve) => {
+    try {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: query, region: 'de' }, (results, status) => {
+        if (status !== google.maps.GeocoderStatus.OK || !results?.[0]) return resolve(null);
+        const r = results[0];
+        if (!r.geometry?.location) return resolve(null);
+        const components = r.address_components ?? [];
+        const city =
+          components.find((c) => c.types.includes('locality'))?.long_name ??
+          components.find((c) => c.types.includes('postal_town'))?.long_name ??
+          components.find((c) => c.types.includes('administrative_area_level_2'))?.long_name;
+        const country = components.find((c) => c.types.includes('country'))?.short_name;
+        resolve({
+          formatted: r.formatted_address ?? query,
+          lat: r.geometry.location.lat(),
+          lng: r.geometry.location.lng(),
+          city,
+          countryCode: country,
+          placeId: r.place_id,
+        });
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function tryPlaces(query: string): Promise<Address | null> {
+  return new Promise((resolve) => {
+    try {
+      const service = new google.maps.places.PlacesService(document.createElement('div'));
+      service.findPlaceFromQuery(
+        {
+          query,
+          fields: ['place_id', 'formatted_address', 'geometry', 'name'],
+        },
+        (results, status) => {
+          if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.[0]) {
+            return resolve(null);
+          }
+          const place = results[0];
+          if (!place.geometry?.location) return resolve(null);
+          resolve({
+            formatted: place.formatted_address ?? query,
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            placeId: place.place_id,
+          });
+        },
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 /* ---------------- Geometry helpers for panel rectangles ---------------- */
 
 const METERS_PER_DEG_LAT = 111_320;

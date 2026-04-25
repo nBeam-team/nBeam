@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatedNumber } from '../components/AnimatedNumber';
-import { RegionalSnapshot } from '../components/RegionalSnapshot';
+import { RegionalIntel } from '../components/RegionalIntel';
 import { Slider } from '../components/Slider';
 import { PrimaryCta } from '../components/TextModeInput';
 import { SolarMap } from '../components/SolarMap';
@@ -244,7 +244,7 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                 <Stat label="roof area" value={`${fmtNumber(Math.round(sp?.wholeRoofStats?.areaMeters2 ?? 0))} m²`} sub={`${sp?.roofSegmentStats?.length ?? 0} segments`} />
               </div>
 
-              <RegionalSnapshot city={(inputs.address.city as City) ?? null} />
+              <RegionalIntel city={(inputs.address.city as City) ?? null} />
             </section>
 
             {/* RIGHT — controls */}

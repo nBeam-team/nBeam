@@ -1,14 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AddressInput } from '../components/AddressInput';
 import { ImportModeInput } from '../components/ImportModeInput';
 import { ModeToggle, type Mode } from '../components/ModeToggle';
-import { RegionalSnapshot } from '../components/RegionalSnapshot';
+import { RegionalIntel } from '../components/RegionalIntel';
 import { Slider } from '../components/Slider';
 import { SolarStrip } from '../components/SolarStrip';
 import { SunMark } from '../components/SunMark';
 import { PrimaryCta, TextModeBody } from '../components/TextModeInput';
-import type { Address } from '../lib/google';
+import { geocodeAddress, type Address } from '../lib/google';
 import { fmtEur, fmtNumber } from '../lib/format';
 import type { ImportResult } from '../lib/dataImport';
 import { DEFAULT_PARTIAL, type ParsedInputs } from '../lib/parse';
@@ -48,6 +48,47 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
   // Stable project id + request timestamp for the lifetime of this form session.
   const [projectId] = useState(() => initial?.projectId ?? makeProjectId());
   const [requestCreatedAt] = useState(() => initial?.requestCreatedAt ?? new Date().toISOString());
+
+  // Loading flags surfaced as inline spinners on the name + address fields.
+  const [aiLoading, setAiLoading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+
+  // Track the last AI-extracted strings we acted on so we don't keep
+  // re-applying them after the user clears or edits the field.
+  const lastAiNameRef = useRef<string | null>(null);
+  const lastAiAddressRef = useRef<string | null>(null);
+
+  // Auto-fill the customer-name field from describe-mode extraction.
+  useEffect(() => {
+    const aiName = describeParsed.customerName?.trim();
+    if (!aiName) return;
+    if (aiName === lastAiNameRef.current) return;
+    if (customerName.trim()) return;
+    lastAiNameRef.current = aiName;
+    setCustomerName(aiName);
+  }, [describeParsed.customerName, customerName]);
+
+  // Auto-fill the address field by geocoding the AI-extracted address string.
+  useEffect(() => {
+    const aiAddress = describeParsed.customerAddress?.trim();
+    if (!aiAddress) return;
+    if (aiAddress === lastAiAddressRef.current) return;
+    if (address) return;
+    lastAiAddressRef.current = aiAddress;
+    let cancelled = false;
+    setGeocoding(true);
+    geocodeAddress(aiAddress)
+      .then((resolved) => {
+        if (cancelled) return;
+        if (resolved) setAddress(resolved);
+      })
+      .finally(() => {
+        if (!cancelled) setGeocoding(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [describeParsed.customerAddress, address]);
 
   // Snapshot city: prefer the picked address, otherwise the AI/regex parse.
   const snapshotCity =
@@ -183,24 +224,42 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
             <label htmlFor="nb-customer" className="nb-eyebrow">
               customer name
             </label>
-            <input
-              id="nb-customer"
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="who is this for?"
-              className="w-full bg-transparent
-                text-[18px] leading-snug text-ink
-                placeholder:text-ink-300 placeholder:italic
-                font-serif
-                outline-none
-                border-0 border-b border-hairline
-                pt-3 pb-3
-                focus:border-ink transition-colors duration-200"
-            />
-            <p className="nb-helper">appears on the proposal — optional but recommended.</p>
+            <div className="relative">
+              <input
+                id="nb-customer"
+                type="text"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="who is this for?"
+                className="w-full bg-transparent
+                  text-[18px] leading-snug text-ink
+                  placeholder:text-ink-300 placeholder:italic
+                  font-serif
+                  outline-none
+                  border-0 border-b border-hairline
+                  pt-3 pb-3 pr-8
+                  focus:border-ink transition-colors duration-200"
+              />
+              {mode === 'describe' && aiLoading && !customerName.trim() ? (
+                <span
+                  aria-label="extracting customer name"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center justify-center"
+                >
+                  <FormSpinner />
+                </span>
+              ) : null}
+            </div>
+            <p className="nb-helper">
+              {mode === 'describe' && aiLoading && !customerName.trim()
+                ? 'gemini is reading your description…'
+                : 'appears on the proposal — optional but recommended.'}
+            </p>
           </div>
-          <AddressInput value={address} onChange={setAddress} />
+          <AddressInput
+            value={address}
+            onChange={setAddress}
+            loading={mode === 'describe' && (aiLoading || geocoding) && !address}
+          />
         </motion.section>
 
         {/* Mode toggle */}
@@ -247,6 +306,7 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
                   text={text}
                   onTextChange={setText}
                   onParsed={setDescribeParsed}
+                  onAiLoadingChange={setAiLoading}
                 />
               </motion.div>
             ) : (
@@ -276,7 +336,7 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
         </div>
 
         <div className="mt-10">
-          <RegionalSnapshot city={snapshotCity} />
+          <RegionalIntel city={snapshotCity} />
         </div>
       </div>
     </main>
@@ -386,5 +446,20 @@ function GuidedForm({
         </motion.div>
       </div>
     </div>
+  );
+}
+
+function FormSpinner() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" className="animate-spin" aria-hidden>
+      <circle cx="8" cy="8" r="6" stroke="#E0D3BC" strokeWidth="1.6" fill="none" />
+      <path
+        d="M8 2a6 6 0 0 1 6 6"
+        stroke="#C44A2C"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
   );
 }

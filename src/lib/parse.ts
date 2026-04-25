@@ -41,6 +41,8 @@ export interface ParsedInputs {
   evAnnualKm?: number;
   city?: City; // Tavily/snapshot hint — not stored in FormInputs
   customerName?: string;
+  /** Full street address; geocoded by InputForm to auto-fill the address field. */
+  customerAddress?: string;
   numInhabitants?: number;
   hasSolar?: boolean;
   hasStorage?: boolean;
@@ -208,6 +210,6 @@ export function parseNaturalLanguage(text: string): ParseResult {
 }
 
 export const NL_EXAMPLE =
-  "Anna Müller, schwabing area in munich, family of 4, uses about 5,000 kWh of electricity a year. budget around €20,000, pays €0.42 per kWh. drives an EV about 12,000 km/year.";
+  "Anna Müller lives at Am Wriezener Bhf, 10243 Berlin-Bezirk Friedrichshain-Kreuzberg, Germany. Family of 4, uses about 5,000 kWh of electricity a year. Budget around €20,000, pays €0.42 per kWh. Drives an EV about 12,000 km/year.";
 
 export { CITIES };

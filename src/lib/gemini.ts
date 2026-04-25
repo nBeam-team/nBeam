@@ -43,6 +43,7 @@ export async function extractFromText(
 function sanitize(raw: ParsedInputs): ParsedInputs {
   const out: ParsedInputs = {};
   if (raw.customerName) out.customerName = String(raw.customerName).trim();
+  if (raw.customerAddress) out.customerAddress = String(raw.customerAddress).trim();
   if (raw.city) out.city = raw.city;
   if (typeof raw.energyDemandKwh === 'number' && raw.energyDemandKwh > 100 && raw.energyDemandKwh < 30000)
     out.energyDemandKwh = Math.round(raw.energyDemandKwh);

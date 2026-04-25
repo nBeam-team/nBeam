@@ -12,6 +12,8 @@ interface Props {
   onChange: (a: Address | null) => void;
   placeholder?: string;
   countries?: string[];
+  /** When true (and no value yet), shows a spinner inside the input. */
+  loading?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function AddressInput({
   onChange,
   placeholder = 'Start typing your address…',
   countries,
+  loading = false,
 }: Props) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -123,6 +126,13 @@ export function AddressInput({
           >
             <CheckIcon />
           </span>
+        ) : loading ? (
+          <span
+            aria-label="resolving address"
+            className="absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center justify-center"
+          >
+            <Spinner />
+          </span>
         ) : null}
       </div>
       {error ? (
@@ -153,6 +163,14 @@ function CheckIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
       <path d="m3 7.2 2 2 4-4.4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function Spinner() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" className="animate-spin" aria-hidden>
+      <circle cx="8" cy="8" r="6" stroke="#E0D3BC" strokeWidth="1.6" fill="none" />
+      <path d="M8 2a6 6 0 0 1 6 6" stroke="#C44A2C" strokeWidth="1.6" strokeLinecap="round" fill="none" />
     </svg>
   );
 }

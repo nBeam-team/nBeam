@@ -9,9 +9,11 @@ interface BodyProps {
   onTextChange: (text: string) => void;
   /** Parent uses the merged AI+regex result for downstream submit. */
   onParsed?: (inputs: ParsedInputs) => void;
+  /** Notifies the parent when the AI extraction is in flight. */
+  onAiLoadingChange?: (loading: boolean) => void;
 }
 
-export function TextModeBody({ text, onTextChange, onParsed }: BodyProps) {
+export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }: BodyProps) {
   const regex = useMemo(() => parseNaturalLanguage(text), [text]);
   const ai = useAiParse(text);
 
@@ -24,6 +26,10 @@ export function TextModeBody({ text, onTextChange, onParsed }: BodyProps) {
   useEffect(() => {
     if (onParsed) onParsed(merged);
   }, [merged, onParsed]);
+
+  useEffect(() => {
+    if (onAiLoadingChange) onAiLoadingChange(ai.loading);
+  }, [ai.loading, onAiLoadingChange]);
 
   const chips = buildChips(merged);
   const totalKnown = chips.length;

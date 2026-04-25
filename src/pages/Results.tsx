@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { EnergyFlow } from '../components/EnergyFlow';
 import { PrintProposal } from '../components/PrintProposal';
-import { RegionalSnapshot } from '../components/RegionalSnapshot';
+import { RegionalIntel } from '../components/RegionalIntel';
 import { RoiChart } from '../components/RoiChart';
 import { SpecCard } from '../components/SpecCard';
 import { staticMapUrl } from '../lib/staticMap';
@@ -78,7 +78,7 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
 
           {/* Live regional context — shows what's happening in your city today */}
           <div className="mt-8 max-w-2xl" data-no-print>
-            <RegionalSnapshot city={cityForSnapshot} variant="full" />
+            <RegionalIntel city={cityForSnapshot} />
           </div>
         </motion.header>
 

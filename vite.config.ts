@@ -68,6 +68,7 @@ const EXTRACTION_SCHEMA = {
   type: 'object',
   properties: {
     customerName: { type: 'string' },
+    customerAddress: { type: 'string' },
     city: { type: 'string' },
     energyDemandKwh: { type: 'number' },
     energyPricePerKwh: { type: 'number' },
@@ -88,6 +89,7 @@ const EXTRACTION_PROMPT = `You are an extraction assistant for a solar installer
 Rules:
 - Only include fields explicitly mentioned in the text. Omit anything not mentioned.
 - Convert all energy values to kWh, prices to € per kWh, distances to km.
+- "customerAddress" must be the full street address as a single string (e.g. "Mustermannstraße 12, 10243 Berlin"). Include only when a specific street address is mentioned, not when only a city or neighborhood is given.
 - "city" must be one of: Berlin, Munich, Hamburg, Frankfurt, Cologne, Stuttgart, Düsseldorf, Dresden, Leipzig, Bremen — only set it if a clearly named German city matches.
 - "hasSolar"/"hasStorage"/"hasWallbox" should be true only if existing equipment is mentioned (e.g. "already has", "existing").
 - Be conservative: if a number is ambiguous, omit the field rather than guessing.
