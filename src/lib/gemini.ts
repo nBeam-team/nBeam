@@ -61,3 +61,26 @@ function sanitize(raw: ParsedInputs): ParsedInputs {
   if (typeof raw.hasWallbox === 'boolean') out.hasWallbox = raw.hasWallbox;
   return out;
 }
+
+export interface PanelLayoutCommand {
+  action: 'remove' | 'add';
+  region: 'north' | 'south' | 'east' | 'west';
+  count?: number;
+}
+
+export async function chatMapCommand(text: string): Promise<PanelLayoutCommand | null> {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const res = await fetch('/api/gemini/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: trimmed }),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `gemini ${res.status}`);
+  }
+  return data.functionCall as PanelLayoutCommand | null;
+}

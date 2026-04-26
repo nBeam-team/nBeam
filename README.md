@@ -95,10 +95,10 @@ npm run preview
 
 ## Deployment notes
 
-The Vite middleware proxies (`/api/tavily/search`, `/api/gemini/extract`)
+The Vite middleware proxies (`/api/tavily/search`, `/api/gemini/extract`, `/api/gemini/chat`)
 only run during `vite dev`. For a deployed build you need to replicate
 those endpoints in whatever hosting environment you choose (Vercel,
-Netlify, Cloudflare Workers, or a small Node server). Both endpoints
+Netlify, Cloudflare Workers, or a small Node server). All endpoints
 should:
 
 1. Accept the same JSON request body the client sends.

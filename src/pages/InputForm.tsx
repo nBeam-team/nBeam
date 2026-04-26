@@ -57,6 +57,7 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
   // re-applying them after the user clears or edits the field.
   const lastAiNameRef = useRef<string | null>(null);
   const lastAiAddressRef = useRef<string | null>(null);
+  const isDemoRef = useRef(false);
 
   // Auto-fill the customer-name field from describe-mode extraction.
   useEffect(() => {
@@ -65,7 +66,9 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
     if (aiName === lastAiNameRef.current) return;
     if (customerName.trim()) return;
     lastAiNameRef.current = aiName;
-    setCustomerName(aiName);
+    Promise.resolve().then(() => {
+      setCustomerName(aiName);
+    });
   }, [describeParsed.customerName, customerName]);
 
   // Auto-fill the address field by geocoding the AI-extracted address string.
@@ -76,7 +79,9 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
     if (address) return;
     lastAiAddressRef.current = aiAddress;
     let cancelled = false;
-    setGeocoding(true);
+    Promise.resolve().then(() => {
+      if (!cancelled) setGeocoding(true);
+    });
     geocodeAddress(aiAddress)
       .then((resolved) => {
         if (cancelled) return;
@@ -304,9 +309,33 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
               >
                 <TextModeBody
                   text={text}
-                  onTextChange={setText}
-                  onParsed={setDescribeParsed}
+                  onTextChange={(newText) => {
+                    isDemoRef.current = false;
+                    setText(newText);
+                  }}
+                  onParsed={(parsed) => {
+                    if (!isDemoRef.current) setDescribeParsed(parsed);
+                  }}
                   onAiLoadingChange={setAiLoading}
+                  onTryExample={() => {
+                    isDemoRef.current = true;
+                    setText("Anna Müller lives at Am Wriezener Bhf, 10243 Berlin. Family of 4, uses 4500 kWh yearly. Has an EV (12k km/yr). Budget €25k. Current electricity price 0.35€.");
+                    setCustomerName("Anna Müller");
+                    setDescribeParsed({
+                      customerName: "Anna Müller",
+                      customerAddress: "Am Wriezener Bhf, 10243 Berlin-Bezirk Friedrichshain-Kreuzberg, Germany",
+                      city: "Berlin",
+                      energyDemandKwh: 4500,
+                      budgetEur: 25000,
+                      energyPricePerKwh: 0.35,
+                      numInhabitants: 4,
+                      hasEv: true,
+                      evAnnualKm: 12000,
+                      hasSolar: false,
+                      hasStorage: false,
+                      hasWallbox: false
+                    });
+                  }}
                 />
               </motion.div>
             ) : (

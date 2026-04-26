@@ -41,7 +41,7 @@ export function ImportModeInput({ text, onTextChange, onParsed }: Props) {
       const content = await file.text();
       onTextChange(content);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('file read failed', err);
     }
   };

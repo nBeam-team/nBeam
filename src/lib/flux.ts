@@ -3,11 +3,14 @@
  *
  * Pipeline: Solar API dataLayers:get returns an annualFluxUrl pointing at a
  * GeoTIFF. The TIFF is downloaded with the API key appended, decoded by
- * geotiff.js, color-mapped onto a canvas, and exposed as a blob URL suitable
- * for google.maps.GroundOverlay. Bounds are reprojected from EPSG:3857 to
- * EPSG:4326 when needed.
+ * geotiff.js, color-mapped onto a canvas, and exposed as a data URL suitable
+ * for google.maps.GroundOverlay. Bounds are reprojected using proj4 +
+ * geotiff-geokeys-to-proj4 (matching the official Google Solar demo).
  */
 import { fromArrayBuffer } from 'geotiff';
+import type { GeoTIFFImage } from 'geotiff';
+import * as geokeysToProj4 from 'geotiff-geokeys-to-proj4';
+import proj4 from 'proj4';
 import { solarKey } from './google';
 
 export interface FluxRaster {
@@ -47,10 +50,14 @@ export async function loadFluxRaster(annualFluxUrl: string): Promise<FluxRaster>
   const width = image.getWidth();
   const height = image.getHeight();
   const rasters = await image.readRasters();
-  // Flux is single-band; readRasters can return TypedArray | TypedArray[].
-  const band = (Array.isArray(rasters) ? rasters[0] : rasters) as Float32Array;
+  // geotiff.js v3 returns an array-like { 0: TypedArray, length: N }.
+  // Array.isArray is false, so access band 0 directly.
+  const band: Float32Array =
+    rasters instanceof Float32Array
+      ? rasters
+      : ((rasters as Record<number, Float32Array>)[0] ?? rasters) as Float32Array;
 
-  const bounds = readableBounds(image, width, height);
+  const bounds = readableBounds(image);
 
   // Off-roof pixels in the flux GeoTIFF use a negative sentinel or NaN.
   let min = Infinity;
@@ -79,7 +86,9 @@ export async function loadFluxRaster(annualFluxUrl: string): Promise<FluxRaster>
 }
 
 /**
- * Render the heatmap to a PNG blob URL, cached by source URL.
+ * Render the heatmap to a data URL (PNG), cached by source URL.
+ * Uses canvas.toDataURL() which is more compatible with GroundOverlay
+ * than blob URLs (matching the Google Solar demo approach).
  */
 export async function renderFluxToBlobUrl(
   raster: FluxRaster,
@@ -113,34 +122,59 @@ export async function renderFluxToBlobUrl(
   }
   ctx.putImageData(img, 0, 0);
 
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob((b) => resolve(b), 'image/png'),
-  );
-  if (!blob) throw new Error('canvas.toBlob returned null');
-  const url = URL.createObjectURL(blob);
-  overlayBlobCache.set(sourceUrl, url);
-  return url;
+  // Use toDataURL instead of blob — more reliable for GroundOverlay
+  const dataUrl = canvas.toDataURL('image/png');
+  overlayBlobCache.set(sourceUrl, dataUrl);
+   
+  console.log('[flux] rendered overlay', raster.width, 'x', raster.height, 'bounds:', raster.bounds);
+  return dataUrl;
 }
 
 /* ---------------- helpers ---------------- */
 
 /**
- * Convert the GeoTIFF bounding box to EPSG:4326 lat/lng. Solar API ships
- * tiles in EPSG:3857 (Web Mercator); a magnitude check skips reprojection
- * when the source is already in lat/lng.
+ * Convert the GeoTIFF bounding box to EPSG:4326 lat/lng using proj4 and
+ * geotiff-geokeys-to-proj4, matching the approach in the official Google
+ * Solar API demo (js-solar-potential).
  */
 function readableBounds(
-  image: { getBoundingBox: () => number[] },
-  _w: number,
-  _h: number,
+  image: GeoTIFFImage,
 ): { south: number; west: number; north: number; east: number } {
-  const [minX, minY, maxX, maxY] = image.getBoundingBox();
-  const looksLikeLatLng =
-    Math.abs(minX) <= 180 && Math.abs(maxX) <= 180 && Math.abs(minY) <= 90 && Math.abs(maxY) <= 90;
-  if (looksLikeLatLng) {
+  const box = image.getBoundingBox();
+
+  // Try proj4-based reprojection using GeoKeys
+  try {
+    const geoKeys = image.getGeoKeys();
+    if (!geoKeys) throw new Error('No geoKeys');
+    const projObj = geokeysToProj4.toProj4(geoKeys as Parameters<typeof geokeysToProj4.toProj4>[0]);
+    const projection = proj4(projObj.proj4, 'WGS84');
+    const coordParams = projObj.coordinatesConversionParameters ?? { x: 1, y: 1 };
+    const sw = projection.forward({
+      x: box[0] * coordParams.x,
+      y: box[1] * coordParams.y,
+    });
+    const ne = projection.forward({
+      x: box[2] * coordParams.x,
+      y: box[3] * coordParams.y,
+    });
+     
+    console.log('[flux] proj4 bounds:', { south: sw.y, west: sw.x, north: ne.y, east: ne.x });
+    return { south: sw.y, west: sw.x, north: ne.y, east: ne.x };
+  } catch (e) {
+     
+    console.warn('[flux] proj4 reprojection failed, falling back to manual', e);
+  }
+
+  // Fallback: check if already in lat/lng
+  const [minX, minY, maxX, maxY] = box;
+  if (
+    Math.abs(minX) <= 180 && Math.abs(maxX) <= 180 &&
+    Math.abs(minY) <= 90 && Math.abs(maxY) <= 90
+  ) {
     return { south: minY, west: minX, north: maxY, east: maxX };
   }
-  // Web Mercator → lat/lng (EPSG:3857 → EPSG:4326)
+
+  // Manual Web Mercator → lat/lng (EPSG:3857 → EPSG:4326)
   const R = 6378137;
   const toLng = (x: number) => (x / R) * (180 / Math.PI);
   const toLat = (y: number) =>

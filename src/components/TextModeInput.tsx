@@ -11,9 +11,11 @@ interface BodyProps {
   onParsed?: (inputs: ParsedInputs) => void;
   /** Notifies the parent when the AI extraction is in flight. */
   onAiLoadingChange?: (loading: boolean) => void;
+  /** Bypasses extraction and loads a static demo. */
+  onTryExample?: () => void;
 }
 
-export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }: BodyProps) {
+export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange, onTryExample }: BodyProps) {
   const regex = useMemo(() => parseNaturalLanguage(text), [text]);
   const ai = useAiParse(text);
 
@@ -68,7 +70,10 @@ export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }
         </div>
         <button
           type="button"
-          onClick={() => onTextChange(NL_EXAMPLE)}
+          onClick={() => {
+            if (onTryExample) onTryExample();
+            else onTextChange(NL_EXAMPLE);
+          }}
           className="text-[12px] italic font-serif text-ink-500 hover:text-terracotta transition-colors underline-offset-4 decoration-hairline hover:decoration-terracotta underline"
         >
           try an example →

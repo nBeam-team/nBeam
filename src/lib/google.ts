@@ -11,11 +11,11 @@ const SOLAR_KEY = (import.meta.env.VITE_GOOGLE_SOLAR_KEY ||
   import.meta.env.VITE_GOOGLE_MAPS_KEY) as string | undefined;
 
 if (!MAPS_KEY) {
-  // eslint-disable-next-line no-console
+   
   console.warn('VITE_GOOGLE_MAPS_KEY is not set; Maps + Places will fail.');
 }
 if (!SOLAR_KEY) {
-  // eslint-disable-next-line no-console
+   
   console.warn('VITE_GOOGLE_SOLAR_KEY is not set; Solar API calls will fail.');
 }
 
@@ -32,7 +32,12 @@ export async function loadMaps(): Promise<typeof google> {
   if (loadPromise) return loadPromise;
   ensureOptions();
   loadPromise = (async () => {
-    await Promise.all([importLibrary('maps'), importLibrary('places')]);
+    await Promise.all([
+      importLibrary('maps'),
+      importLibrary('places'),
+      importLibrary('geometry'),
+      importLibrary('drawing'),
+    ]);
     return google;
   })();
   return loadPromise;
@@ -179,7 +184,7 @@ export async function fetchDataLayers(
   url.searchParams.set('location.longitude', String(lng));
   url.searchParams.set('radiusMeters', String(radiusMeters));
   url.searchParams.set('view', 'FULL_LAYERS');
-  url.searchParams.set('requiredQuality', 'HIGH');
+  url.searchParams.set('requiredQuality', 'BASE');
   url.searchParams.set('key', solarKey());
 
   const res = await fetch(url.toString());
@@ -336,6 +341,37 @@ export function panelPolygon(
       longitude: panel.center.longitude + east / mPerLng,
     };
   });
+}
+
+/**
+ * Compute the ideal radius for the dataLayers:get call.
+ * We calculate the distance from the building center to the furthest corner
+ * of its bounding box to ensure the entire structure is covered.
+ */
+export function computeBuildingRadius(insights: BuildingInsights): number {
+  const center = insights.center;
+  const centerPt = new google.maps.LatLng(center.latitude, center.longitude);
+  const bbox = insights.boundingBox;
+
+  // Check distance to all 4 corners of the bounding box
+  const corners = [
+    { lat: bbox.ne.latitude, lng: bbox.ne.longitude },
+    { lat: bbox.ne.latitude, lng: bbox.sw.longitude },
+    { lat: bbox.sw.latitude, lng: bbox.ne.longitude },
+    { lat: bbox.sw.latitude, lng: bbox.sw.longitude },
+  ];
+
+  let maxDist = 0;
+  for (const corner of corners) {
+    const d = google.maps.geometry.spherical.computeDistanceBetween(
+      centerPt,
+      new google.maps.LatLng(corner.lat, corner.lng),
+    );
+    if (d > maxDist) maxDist = d;
+  }
+
+  // Add a generous 20% buffer to ensure the GeoTIFF covers the roof edges
+  return Math.ceil(maxDist * 1.2);
 }
 
 /* ---------------- Util ---------------- */

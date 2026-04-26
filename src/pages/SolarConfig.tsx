@@ -4,15 +4,20 @@ import { AnimatedNumber } from '../components/AnimatedNumber';
 import { RegionalIntel } from '../components/RegionalIntel';
 import { Slider } from '../components/Slider';
 import { PrimaryCta } from '../components/TextModeInput';
-import { SolarMap } from '../components/SolarMap';
+import { SolarMap, type EditTool } from '../components/SolarMap';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import {
   fetchBuildingInsights,
   fetchDataLayers,
+  computeBuildingRadius,
+  topPanelsByEnergy,
   type BuildingInsights,
   type DataLayers,
+  type SolarPanel,
 } from '../lib/google';
+import { chatMapCommand } from '../lib/gemini';
 import { fmtEur, fmtNumber } from '../lib/format';
-import { defaultConfigForBuilding, design as designSystem } from '../lib/calc';
+import { defaultConfigForBuilding, design as designSystem, simulateBattery, compute24HourAverage } from '../lib/calc';
 import type { City, FormInputs, SolarConfigInputs, SystemDesign } from '../lib/types';
 
 interface Props {
@@ -30,24 +35,109 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
   const [loading, setLoading] = useState(!insights);
   const [error, setError] = useState<string | null>(null);
   const [dataLayers, setDataLayers] = useState<DataLayers | null>(null);
-  const [showFlux, setShowFlux] = useState(false);
+  const [showFluxLayer, setShowFluxLayer] = useState(true);
+  const [showPanelsLayer, setShowPanelsLayer] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [editTool, setEditTool] = useState<EditTool>('select');
 
   // Editable state. Restored from `initial` when returning to this screen.
   const [config, setConfig] = useState<SolarConfigInputs>(
     initial?.config ?? defaultConfigForBuilding(insights, inputs),
   );
+
+  const [activePanels, setActivePanels] = useState<SolarPanel[]>(() => {
+    if (initial?.config?.activePanels?.length) {
+      return initial.config.activePanels;
+    }
+    if (insights?.solarPotential?.solarPanels) {
+      return topPanelsByEnergy(
+        insights.solarPotential.solarPanels,
+        initial?.config?.panelsCount ?? 12
+      );
+    }
+    return [];
+  });
+
   // Subset of FormInputs that the user can adjust on this screen.
   const [liveInputs, setLiveInputs] = useState<FormInputs>(inputs);
 
   useEffect(() => {
+    Promise.resolve().then(() => {
+      setConfig(c => ({ 
+        ...c, 
+        panelsCount: activePanels.length,
+        activePanels: activePanels 
+      }));
+    });
+  }, [activePanels]);
+
+  // Stable key for panel identity — uses toFixed(7) to avoid float formatting drift
+  const panelKey = (p: SolarPanel) => `${p.center.latitude.toFixed(7)},${p.center.longitude.toFixed(7)}`;
+
+  const handleSliderChange = (newCount: number) => {
+    if (!insights?.solarPotential?.solarPanels) return;
+    const allPanels = insights.solarPotential.solarPanels;
+
+    if (newCount > activePanels.length) {
+      // Add more panels — highest-yield first from API positions
+      const activeKeys = new Set(activePanels.map(panelKey));
+      const available = [...allPanels]
+        .sort((a, b) => b.yearlyEnergyDcKwh - a.yearlyEnergyDcKwh)
+        .filter((p) => !activeKeys.has(panelKey(p)));
+      const toAdd = available.slice(0, newCount - activePanels.length);
+      setActivePanels([...activePanels, ...toAdd]);
+    } else if (newCount < activePanels.length) {
+      // Remove lowest-yield panels
+      const sorted = [...activePanels].sort((a, b) => b.yearlyEnergyDcKwh - a.yearlyEnergyDcKwh);
+      setActivePanels(sorted.slice(0, newCount));
+    }
+  };
+
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+
+  const handleChatCommand = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    setChatLoading(true);
+    try {
+      const command = await chatMapCommand(chatInput);
+      if (command && command.action === 'remove') {
+        const count = command.count || 1;
+        const sorted = [...activePanels];
+        if (command.region === 'north') {
+          sorted.sort((a, b) => b.center.latitude - a.center.latitude);
+        } else if (command.region === 'south') {
+          sorted.sort((a, b) => a.center.latitude - b.center.latitude);
+        } else if (command.region === 'east') {
+          sorted.sort((a, b) => b.center.longitude - a.center.longitude);
+        } else if (command.region === 'west') {
+          sorted.sort((a, b) => a.center.longitude - b.center.longitude);
+        }
+
+        const toRemove = new Set(sorted.slice(0, count));
+        const newPanels = activePanels.filter(p => !toRemove.has(p));
+        setActivePanels(newPanels);
+      }
+      setChatInput('');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (insights) return;
     let cancelled = false;
-    setLoading(true);
     fetchBuildingInsights(lat, lng)
       .then((data) => {
         if (cancelled) return;
         setInsights(data);
-        setConfig(defaultConfigForBuilding(data, inputs));
+        const defConfig = defaultConfigForBuilding(data, inputs);
+        setConfig(defConfig);
+        if (data.solarPotential?.solarPanels) {
+          setActivePanels(topPanelsByEnergy(data.solarPotential.solarPanels, defConfig.panelsCount));
+        }
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message);
@@ -61,11 +151,13 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng]);
 
-  // Fetch data layers in parallel with insights so the heatmap is ready
-  // immediately when the user toggles it.
+  // Fetch data layers AFTER insights so we can compute the correct radius.
   useEffect(() => {
+    if (!insights) return;
     let cancelled = false;
-    fetchDataLayers(lat, lng, 50)
+    const radius = computeBuildingRadius(insights);
+    const { latitude, longitude } = insights.center;
+    fetchDataLayers(latitude, longitude, radius)
       .then((d) => {
         if (!cancelled) setDataLayers(d);
       })
@@ -75,7 +167,7 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [lat, lng]);
+  }, [insights]);
 
   const sp = insights?.solarPotential;
   const maxPanels = sp?.solarPanelConfigs?.length
@@ -93,6 +185,20 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
     () => designSystem(liveInputs, config, insights),
     [liveInputs, config, insights],
   );
+
+  const hourlyResults = useMemo(() => {
+    return simulateBattery(liveInputs.energyDemandKwh, liveDesign.annualProductionKwh, config.batteryKwh);
+  }, [liveInputs.energyDemandKwh, liveDesign.annualProductionKwh, config.batteryKwh]);
+
+  const chartData = useMemo(() => {
+    const avg = compute24HourAverage(hourlyResults);
+    return avg.map((a, i) => ({
+      hour: `${i}:00`,
+      consumption: a.consumption,
+      generation: a.generation,
+      soc: a.soc
+    }));
+  }, [hourlyResults]);
 
   const updateConfig = <K extends keyof SolarConfigInputs>(key: K, v: SolarConfigInputs[K]) =>
     setConfig((c) => ({ ...c, [key]: v }));
@@ -156,11 +262,14 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                   <SolarMap
                     address={inputs.address}
                     insights={insights}
-                    panelsCount={config.panelsCount}
-                    showFlux={showFlux}
+                    activePanels={activePanels}
+                    onPanelsChange={setActivePanels}
+                    showFlux={showFluxLayer}
                     fluxUrl={dataLayers?.annualFluxUrl ?? null}
-                    showPanels={!showFlux}
+                    showPanels={showPanelsLayer}
                     className="w-full aspect-[4/3] md:aspect-[16/11]"
+                    editMode={editMode}
+                    editTool={editTool}
                   />
                 ) : (
                   <div className="w-full aspect-[4/3] md:aspect-[16/11] rounded-2xl border border-hairline bg-paper-dark/40 flex items-center justify-center">
@@ -183,38 +292,73 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                   </div>
                 ) : null}
 
-                {/* layer toggle */}
+                {/* layer toggle + edit button */}
                 {insights ? (
-                  <div className="absolute bottom-3 left-3 inline-flex items-center bg-paper-light/95 backdrop-blur-sm shadow-card rounded-full p-1 text-[12px]">
-                    <button
-                      type="button"
-                      onClick={() => setShowFlux(false)}
-                      className={`px-3 py-1.5 rounded-full transition-colors duration-200 ${
-                        !showFlux ? 'bg-ink text-paper-light' : 'text-ink-500 hover:text-ink'
-                      }`}
-                    >
-                      <span className="font-serif italic">panels</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowFlux(true)}
-                      disabled={!dataLayers?.annualFluxUrl}
-                      className={`px-3 py-1.5 rounded-full transition-colors duration-200 ${
-                        showFlux
+                  <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                    <div className="inline-flex items-center bg-paper-light/95 backdrop-blur-sm shadow-card rounded-full p-1 text-[12px]">
+                      <button
+                        type="button"
+                        onClick={() => setShowPanelsLayer(v => !v)}
+                        className={`px-3 py-1.5 rounded-full transition-colors duration-200 ${showPanelsLayer ? 'bg-ink text-paper-light' : 'text-ink-500 hover:text-ink'
+                          }`}
+                      >
+                        <span className="font-serif italic">panels</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowFluxLayer(v => !v)}
+                        disabled={!dataLayers?.annualFluxUrl}
+                        className={`px-3 py-1.5 rounded-full transition-colors duration-200 ${showFluxLayer
                           ? 'bg-ink text-paper-light'
                           : dataLayers?.annualFluxUrl
                             ? 'text-ink-500 hover:text-ink'
                             : 'text-ink-300 cursor-not-allowed'
-                      }`}
-                      title={dataLayers?.annualFluxUrl ? 'Annual sunlight on this roof' : 'No heatmap data for this address'}
+                          }`}
+                        title={dataLayers?.annualFluxUrl ? 'Annual sunlight on this roof' : 'No heatmap data for this address'}
+                      >
+                        <span className="font-serif italic">heatmap</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setEditMode(v => !v); setEditTool('select'); }}
+                      className={`px-3 py-1.5 rounded-full text-[12px] font-medium backdrop-blur-sm shadow-card transition-colors duration-200 ${editMode
+                        ? 'bg-terracotta text-paper-light'
+                        : 'bg-paper-light/95 text-ink-500 hover:text-ink'
+                        }`}
                     >
-                      <span className="font-serif italic">heatmap</span>
+                      {editMode ? '✓ done' : '✎ edit'}
                     </button>
                   </div>
                 ) : null}
 
+                {/* Edit toolbar */}
+                {editMode && insights ? (
+                  <div className="absolute bottom-14 left-3 inline-flex items-center gap-1 bg-ink/90 backdrop-blur-sm rounded-full p-1 text-[11px] shadow-card">
+                    {([
+                      { tool: 'select' as EditTool, label: '↖ select', title: 'Click panel to select, then Delete key' },
+                      { tool: 'place' as EditTool, label: '＋ place', title: 'Click map to place a new panel' },
+                      { tool: 'lasso-add' as EditTool, label: '◯ add panels', title: 'Draw region to add panels from API' },
+                      { tool: 'lasso-remove' as EditTool, label: '◯ remove panels', title: 'Draw region to remove panels' },
+                    ]).map(({ tool, label, title }) => (
+                      <button
+                        key={tool}
+                        type="button"
+                        onClick={() => setEditTool(tool)}
+                        title={title}
+                        className={`px-2.5 py-1 rounded-full transition-colors duration-150 whitespace-nowrap ${editTool === tool
+                          ? 'bg-paper-light text-ink'
+                          : 'text-paper-light/70 hover:text-paper-light'
+                          }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
                 {/* flux legend */}
-                {showFlux && insights ? (
+                {showFluxLayer && insights ? (
                   <div className="absolute bottom-3 right-3 px-3 py-2 rounded-lg bg-paper-light/95 backdrop-blur-sm shadow-card text-[10px] uppercase tracking-[0.18em] text-ink-500">
                     <p className="mb-1">annual sunlight</p>
                     <div className="flex items-center gap-2">
@@ -232,6 +376,27 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                 ) : null}
               </div>
 
+              {/* AI Chat Map Command */}
+              <div className="flex items-center gap-2 bg-paper-light border border-hairline rounded-full px-4 py-2 mt-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleChatCommand(); }}
+                  placeholder="Ask AI to modify layout (e.g. 'remove 3 panels from the north')"
+                  className="flex-1 bg-transparent outline-none text-[13px] font-serif text-ink placeholder:text-ink-300"
+                  disabled={chatLoading}
+                />
+                <button
+                  type="button"
+                  onClick={handleChatCommand}
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="text-[12px] uppercase tracking-[0.1em] font-medium text-terracotta disabled:opacity-50"
+                >
+                  {chatLoading ? 'Thinking...' : 'Apply'}
+                </button>
+              </div>
+
               {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Stat label="max system" value={`${((maxPanels * (sp?.panelCapacityWatts ?? 400)) / 1000).toFixed(1)} kWp`} sub={`${maxPanels} panels`} />
@@ -242,6 +407,28 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                 />
                 <Stat label="sunshine" value={`${fmtNumber(maxSunHours)} hr/yr`} sub="best part of roof" />
                 <Stat label="roof area" value={`${fmtNumber(Math.round(sp?.wholeRoofStats?.areaMeters2 ?? 0))} m²`} sub={`${sp?.roofSegmentStats?.length ?? 0} segments`} />
+              </div>
+
+              <div className="bg-paper-light border border-hairline rounded-2xl p-6 mt-6">
+                <h3 className="font-serif text-[18px] text-ink mb-4">24-Hour Average Simulation</h3>
+                <div style={{ width: '100%', height: 280 }}>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E0D3BC" />
+                      <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#8C877D' }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#8C877D' }} axisLine={false} tickLine={false} unit=" kWh" />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#8C877D' }} axisLine={false} tickLine={false} unit=" kWh" />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#FAF4E8', borderRadius: '8px', border: '1px solid #E0D3BC', fontSize: '12px' }}
+                        formatter={(value) => `${Number(value).toFixed(2)} kWh`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                      <Bar yAxisId="left" dataKey="consumption" fill="#502646" name="Consumption" radius={[2, 2, 0, 0]} opacity={0.85} />
+                      <Bar yAxisId="left" dataKey="generation" fill="#FDB813" name="Generation" radius={[2, 2, 0, 0]} opacity={0.85} />
+                      <Line yAxisId="right" type="monotone" dataKey="soc" stroke="#7A9A75" strokeWidth={2.5} name="Battery SoC" dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
 
               <RegionalIntel city={(inputs.address.city as City) ?? null} />
@@ -297,12 +484,12 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                 <div className="divide-y divide-hairline">
                   <Slider
                     label="Number of panels"
-                    helper={`Solar API found a max of ${maxPanels} possible. The map updates as you slide.`}
-                    min={1}
-                    max={Math.max(1, maxPanels)}
+                    helper={`Edit panels on the map, or slide here. Max ${maxPanels} available.`}
+                    min={0}
+                    max={maxPanels}
                     step={1}
-                    value={Math.min(config.panelsCount, Math.max(1, maxPanels))}
-                    onChange={(v) => updateConfig('panelsCount', v)}
+                    value={activePanels.length}
+                    onChange={handleSliderChange}
                     formatValue={(v) => `${v}`}
                     formatBound={(v) => `${v}`}
                   />
@@ -323,10 +510,9 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                             type="button"
                             onClick={() => updateConfig('panelWattage', w)}
                             className={`px-3 py-1.5 rounded-full text-[12px] font-medium tracking-wide
-                              border transition-colors duration-150 ${
-                                active
-                                  ? 'bg-ink text-paper-light border-ink'
-                                  : 'bg-transparent text-ink-700 border-hairline hover:border-ink-700'
+                              border transition-colors duration-150 ${active
+                                ? 'bg-ink text-paper-light border-ink'
+                                : 'bg-transparent text-ink-700 border-hairline hover:border-ink-700'
                               }`}
                           >
                             {w} W

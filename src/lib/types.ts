@@ -1,4 +1,4 @@
-import type { Address, BuildingInsights } from './google';
+import type { Address, BuildingInsights, SolarPanel } from './google';
 
 export type { Address };
 
@@ -76,10 +76,24 @@ export interface FormInputs {
   budgetEur?: number;
 }
 
+/** Represents a single line item in the granular CPQ Bill of Materials. */
+export interface BomItem {
+  category: 'hardware' | 'labor' | 'service';
+  componentType: string;
+  name: string;
+  brand?: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+/** Detailed cost aggregation for the entire project quotation. */
 export interface CostBreakdown {
-  pvSystem: number;
-  battery: number;
-  installation: number;
+  bom: BomItem[];
+  hardwareTotal: number;
+  laborTotal: number;
+  serviceTotal: number;
   total: number;
 }
 
@@ -88,6 +102,7 @@ export interface SolarConfigInputs {
   panelsCount: number;
   panelWattage: number;
   batteryKwh: number;
+  activePanels: SolarPanel[];
 }
 
 export interface SystemDesign {
