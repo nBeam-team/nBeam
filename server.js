@@ -11,6 +11,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' }); // Load .env.local specifically
 dotenv.config(); // Fallback to .env
 import express from 'express';
+import helmet from 'helmet';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -32,23 +33,54 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Security headers
+// Security headers — Helmet handles HSTS, X-Frame-Options, X-Content-Type-Options,
+// Referrer-Policy, X-DNS-Prefetch-Control, Origin-Agent-Cluster, X-Permitted-
+// Cross-Domain-Policies, and removes X-Powered-By.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          'https://maps.googleapis.com',
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://maps.gstatic.com',
+          'https://maps.googleapis.com',
+          'https://*.googleapis.com',
+        ],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        frameSrc: ['https://maps.googleapis.com'],
+        connectSrc: [
+          "'self'",
+          'https://*.googleapis.com',
+          'https://api.tavily.com',
+          'wss://*.gradium.ai',
+          'ws://localhost:*',
+          'wss://localhost:*',
+        ],
+      },
+    },
+    // Google Maps tiles, the Solar API GeoTIFF download, and Gradium WS audio
+    // need cross-origin loads. Relax COEP / CORP accordingly.
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+);
+
+// Permissions-Policy isn't part of Helmet's defaults.
 app.use((_req, res, next) => {
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(self)');
   res.setHeader(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "frame-src https://maps.googleapis.com",
-      "connect-src 'self' https://*.googleapis.com https://api.tavily.com wss://*.gradium.ai ws://localhost:* wss://localhost:*",
-    ].join('; ')
+    'Permissions-Policy',
+    'camera=(), microphone=(self), geolocation=(self)',
   );
   next();
 });
