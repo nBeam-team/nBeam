@@ -6,9 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "node server.js",
     "build": "tsc -b && vite build",
-    "start": "node server.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
