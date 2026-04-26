@@ -233,6 +233,8 @@ dist-ssr
 *.local
 .env
 .env.local
+.vite
+**/.vite
 
 # Editor directories and files
 .vscode/*

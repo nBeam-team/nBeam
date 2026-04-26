@@ -223,8 +223,10 @@ app.post('/api/gemini/chat', async (req, res) => {
 });
 
 // ─── Static File Serving ────────────────────────────────────────────────────
+// Vite (under webapp/) emits its build into webapp/dist. server.js sits at
+// the repo root, so the correct path is webapp/dist relative to __dirname.
 
-const distPath = join(__dirname, 'dist');
+const distPath = join(__dirname, 'webapp', 'dist');
 app.use(express.static(distPath));
 
 app.get(/^\/(?!api\/).*/, (_req, res) => {
