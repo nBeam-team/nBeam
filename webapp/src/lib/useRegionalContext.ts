@@ -23,10 +23,10 @@ export function useRegionalContext(city: City | null, debounceMs = 350) {
 
   useEffect(() => {
     if (!city) {
-      setState({ city: null, loading: false, data: null, error: null });
+      Promise.resolve().then(() => setState({ city: null, loading: false, data: null, error: null }));
       return;
     }
-    setState((s) => ({ ...s, city, loading: true, error: null }));
+    Promise.resolve().then(() => setState((s) => ({ ...s, city, loading: true, error: null })));
 
     const ctrl = new AbortController();
     const t = setTimeout(() => {

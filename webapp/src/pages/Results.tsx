@@ -2,12 +2,11 @@ import { motion } from 'framer-motion';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { EnergyFlow } from '../components/EnergyFlow';
 import { PrintProposal } from '../components/PrintProposal';
-import { RegionalIntel } from '../components/RegionalIntel';
 import { RoiChart } from '../components/RoiChart';
 import { SpecCard } from '../components/SpecCard';
 import { staticMapUrl } from '../lib/staticMap';
 import { fmtEur, fmtNumber } from '../lib/format';
-import type { City, SystemDesign } from '../lib/types';
+import type { SystemDesign } from '../lib/types';
 
 interface Props {
   design: SystemDesign;
@@ -17,7 +16,6 @@ interface Props {
 }
 
 export function Results({ design, onBackToConfig, onRestart }: Props) {
-  const cityForSnapshot = (design.inputs.address.city as City) ?? null;
 
   return (
     <main className="relative pb-24 print:pb-0">
@@ -78,7 +76,7 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
 
           {/* Live regional context — shows what's happening in your city today */}
           <div className="mt-8 max-w-2xl" data-no-print>
-            <RegionalIntel city={cityForSnapshot} />
+
           </div>
         </motion.header>
 
@@ -210,15 +208,45 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
               className="bg-paper-light/60 border border-hairline rounded-xl p-6"
             >
               <p className="nb-eyebrow text-[10px] mb-5">investment</p>
-              <ul className="space-y-3.5">
-                <CostRow label="solar system" sub="modules + DC" amount={design.cost.pvSystem} />
-                {design.batteryKwh > 0 ? (
-                  <CostRow label="battery" sub="lithium pack + BMS" amount={design.cost.battery} />
-                ) : null}
-                <CostRow label="installation" sub="labor, permits, testing" amount={design.cost.installation} />
-              </ul>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[11px] font-medium text-ink-400 uppercase tracking-widest mb-2">Hardware</p>
+                  <ul className="space-y-2">
+                    {design.cost.bom.filter(i => i.category === 'hardware').map((item, idx) => (
+                      <CostRow key={idx} label={item.name} sub={`${item.quantity} ${item.unit}`} amount={item.totalPrice} />
+                    ))}
+                  </ul>
+                  <div className="mt-2 pt-2 border-t border-hairline flex justify-end">
+                    <span className="text-[12px] font-serif italic text-ink-500">Hardware subtotal: {fmtEur(design.cost.hardwareTotal)}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-medium text-ink-400 uppercase tracking-widest mb-2">Labor</p>
+                  <ul className="space-y-2">
+                    {design.cost.bom.filter(i => i.category === 'labor').map((item, idx) => (
+                      <CostRow key={idx} label={item.name} sub={`${item.quantity} ${item.unit}`} amount={item.totalPrice} />
+                    ))}
+                  </ul>
+                  <div className="mt-2 pt-2 border-t border-hairline flex justify-end">
+                    <span className="text-[12px] font-serif italic text-ink-500">Labor subtotal: {fmtEur(design.cost.laborTotal)}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-medium text-ink-400 uppercase tracking-widest mb-2">Services</p>
+                  <ul className="space-y-2">
+                    {design.cost.bom.filter(i => i.category === 'service').map((item, idx) => (
+                      <CostRow key={idx} label={item.name} sub={`${item.quantity} ${item.unit}`} amount={item.totalPrice} />
+                    ))}
+                  </ul>
+                  <div className="mt-2 pt-2 border-t border-hairline flex justify-end">
+                    <span className="text-[12px] font-serif italic text-ink-500">Service subtotal: {fmtEur(design.cost.serviceTotal)}</span>
+                  </div>
+                </div>
+              </div>
               <div className="mt-5 pt-5 border-t border-hairline flex items-baseline justify-between">
-                <span className="font-serif italic text-[18px] text-ink">total</span>
+                <span className="font-serif italic text-[18px] text-ink">Total</span>
                 <span className="font-serif text-[32px] text-terracotta tabular-nums tracking-tight">
                   <AnimatedNumber value={design.cost.total} prefix="€" duration={1100} />
                 </span>
@@ -234,7 +262,7 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
                   bg-transparent hover:bg-ink hover:text-paper-light transition-colors duration-200 text-[14px]
                   flex items-center justify-between px-6"
               >
-                <span className="font-serif italic">← tweak the design</span>
+                <span className="font-serif italic">← Tweak the Design</span>
                 <span className="text-[18px]">⚙</span>
               </button>
               <button
@@ -243,14 +271,14 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
                   hover:bg-terracotta-dark transition-colors duration-200 text-[14px]
                   flex items-center justify-between px-6"
               >
-                <span className="font-serif italic">save as pdf</span>
+                <span className="font-serif italic">Generate Quotation</span>
                 <span className="text-[18px] transition-transform group-hover:translate-x-0.5">→</span>
               </button>
               <button
                 onClick={onRestart}
                 className="w-full h-10 text-ink-500 font-medium text-[13px] hover:text-ink transition-colors"
               >
-                start over
+                Start Over
               </button>
             </div>
           </aside>

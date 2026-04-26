@@ -1,9 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { type Address, loadMaps } from '../lib/google';
 
 function useLatest<T>(value: T) {
   const ref = useRef(value);
-  ref.current = value;
+  useLayoutEffect(() => {
+    ref.current = value;
+  });
   return ref;
 }
 
@@ -70,7 +72,7 @@ export function AddressInput({
         setReady(true);
       })
       .catch((e: Error) => {
-        // eslint-disable-next-line no-console
+         
         console.error('Maps load failed', e);
         setError('Could not load address search. Check that Maps JS + Places APIs are enabled on your key.');
       });
@@ -85,8 +87,10 @@ export function AddressInput({
 
   // If parent clears the value, reflect it
   useEffect(() => {
-    if (value === null) setText('');
-    else if (value.formatted !== text) setText(value.formatted);
+    Promise.resolve().then(() => {
+      if (value === null) setText('');
+      else if (value.formatted !== text) setText(value.formatted);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 

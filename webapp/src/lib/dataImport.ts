@@ -352,7 +352,7 @@ function num(v: unknown): number {
   if (typeof v === 'number') return v;
   if (typeof v === 'boolean') return v ? 1 : 0;
   if (v === null || v === undefined || v === '') return NaN;
-  const cleaned = String(v).replace(/[^0-9.\-]/g, '');
+  const cleaned = String(v).replace(/[^0-9.-]/g, '');
   return parseFloat(cleaned);
 }
 

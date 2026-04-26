@@ -169,38 +169,15 @@ export function PrintProposal({ design }: Props) {
             </tr>
           </thead>
           <tbody>
-            <LineRow
-              item="Solar modules"
-              spec={`${design.config.panelWattage} W monocrystalline, framed`}
-              qty={`${design.modulesCount}`}
-              total={fmtEur(design.cost.pvSystem)}
-            />
-            {design.batteryKwh > 0 && (
+            {design.cost.bom.map((item, idx) => (
               <LineRow
-                item="Battery storage"
-                spec={`Lithium-ion, ${design.batteryKwh} kWh usable`}
-                qty="1"
-                total={fmtEur(design.cost.battery)}
+                key={idx}
+                item={item.name}
+                spec={item.brand ? `Brand: ${item.brand}` : item.category}
+                qty={`${item.quantity} ${item.unit}`}
+                total={fmtEur(item.totalPrice)}
               />
-            )}
-            <LineRow
-              item="Hybrid inverter"
-              spec={`${design.inverterKw.toFixed(1)} kW string inverter`}
-              qty="1"
-              total="incl."
-            />
-            <LineRow
-              item="Installation"
-              spec="Mounting, DC + AC wiring, commissioning"
-              qty="—"
-              total={fmtEur(design.cost.installation)}
-            />
-            <LineRow
-              item="Permits &amp; testing"
-              spec="Grid registration, inspection"
-              qty="—"
-              total="incl."
-            />
+            ))}
             <tr className="border-t-2 border-ink/60">
               <td className="py-3 font-serif italic text-[14px]" colSpan={3}>
                 Total investment
