@@ -302,7 +302,7 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                         className={`px-3 py-1.5 rounded-full transition-colors duration-200 ${showPanelsLayer ? 'bg-ink text-paper-light' : 'text-ink-500 hover:text-ink'
                           }`}
                       >
-                        <span className="font-serif italic">panels</span>
+                        <span className="font-serif italic">Panels</span>
                       </button>
                       <button
                         type="button"
@@ -316,7 +316,7 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                           }`}
                         title={dataLayers?.annualFluxUrl ? 'Annual sunlight on this roof' : 'No heatmap data for this address'}
                       >
-                        <span className="font-serif italic">heatmap</span>
+                        <span className="font-serif italic">Heatmap</span>
                       </button>
                     </div>
                     <button
@@ -327,7 +327,7 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                         : 'bg-paper-light/95 text-ink-500 hover:text-ink'
                         }`}
                     >
-                      {editMode ? '✓ done' : '✎ edit'}
+                      {editMode ? '✓ Done' : '✎ Edit'}
                     </button>
                   </div>
                 ) : null}
@@ -621,7 +621,7 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
                   disabled={!insights}
                   onClick={() => onContinue(liveDesign, insights)}
                 >
-                  See my savings
+                  See My Savings
                 </PrimaryCta>
               </div>
             </aside>

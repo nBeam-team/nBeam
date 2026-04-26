@@ -6,12 +6,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node server.js",
     "build": "tsc -b && vite build",
+    "start": "node server.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
+    "express": "^5.1.0",
+    "dotenv": "^16.4.7",
+    "ws": "^8.18.0",
     "framer-motion": "^12.38.0",
     "geotiff": "^3.0.5",
     "geotiff-geokeys-to-proj4": "^2024.4.13",

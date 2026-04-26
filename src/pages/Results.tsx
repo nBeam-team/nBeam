@@ -246,7 +246,7 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
                 </div>
               </div>
               <div className="mt-5 pt-5 border-t border-hairline flex items-baseline justify-between">
-                <span className="font-serif italic text-[18px] text-ink">total</span>
+                <span className="font-serif italic text-[18px] text-ink">Total</span>
                 <span className="font-serif text-[32px] text-terracotta tabular-nums tracking-tight">
                   <AnimatedNumber value={design.cost.total} prefix="€" duration={1100} />
                 </span>
@@ -262,7 +262,7 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
                   bg-transparent hover:bg-ink hover:text-paper-light transition-colors duration-200 text-[14px]
                   flex items-center justify-between px-6"
               >
-                <span className="font-serif italic">← tweak the design</span>
+                <span className="font-serif italic">← Tweak the Design</span>
                 <span className="text-[18px]">⚙</span>
               </button>
               <button
@@ -278,7 +278,7 @@ export function Results({ design, onBackToConfig, onRestart }: Props) {
                 onClick={onRestart}
                 className="w-full h-10 text-ink-500 font-medium text-[13px] hover:text-ink transition-colors"
               >
-                start over
+                Start Over
               </button>
             </div>
           </aside>

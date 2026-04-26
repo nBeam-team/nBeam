@@ -8,8 +8,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000', // When running locally, if needed, or Vercel handles it via `vercel dev`
-        changeOrigin: true
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        ws: true
       }
     }
   }

@@ -356,11 +356,11 @@ export function InputForm({ initial, initialText = '', initialMode = 'import', o
         <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
           <p className="text-[13px] text-ink-500 italic font-serif max-w-xs leading-snug">
             {address
-              ? "we'll find this roof on satellite next →"
-              : 'pick the customer address above to continue.'}
+              ? "We'll find this roof on satellite next →"
+              : 'Pick the customer address above to continue.'}
           </p>
           <PrimaryCta disabled={!canSubmit} onClick={handleSubmit}>
-            Find the roof
+            Find the Roof
           </PrimaryCta>
         </div>
 
