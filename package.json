@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "start": "node server.js",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "install:all": "npm install && npm --prefix webapp install"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
