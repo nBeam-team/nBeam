@@ -5,13 +5,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "npm --prefix webapp run dev",
+    "dev": "vite",
     "dev:server": "node server.js",
-    "build": "npm --prefix webapp run build",
+    "build": "tsc -b && vite build",
     "start": "node server.js",
-    "lint": "npm --prefix webapp run lint",
-    "preview": "npm --prefix webapp run preview",
-    "install:all": "npm install && npm --prefix webapp install"
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",
