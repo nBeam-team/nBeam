@@ -120,16 +120,64 @@ Google Cloud Console.
 
 ---
 
+## Project layout
+
+The repo has **two `package.json` files** — one at the root (server-side
+deps) and one inside `webapp/` (frontend deps):
+
+```
+nBeam/
+├── server.js              ← Express backend, run from project root
+├── package.json           ← express, dotenv, ws (server deps)
+├── .env.local             ← API keys (gitignored)
+├── api/                   ← serverless function alternatives
+├── nbeam_app/             ← Python FastAPI service
+└── webapp/
+    ├── package.json       ← React, Vite, Recharts, etc. (frontend deps)
+    ├── vite.config.ts     ← envDir: '..' so it reads .env.local from root
+    ├── index.html
+    └── src/
+```
+
+**Both `package.json` files need to be installed** before the app will
+run. There is a one-shot helper script for this — see `install:all`
+below.
+
+---
+
 ## Setup
+
+### 1. Clone
 
 ```bash
 git clone https://github.com/nBeam-team/nBeam.git
 cd nBeam
-npm install
+```
+
+### 2. Install dependencies
+
+```bash
+npm run install:all
+```
+
+This is short for:
+
+```bash
+npm install                      # root deps (express, dotenv, ws)
+npm --prefix webapp install      # frontend deps (vite, react, …)
+```
+
+If you only run `npm install` in `webapp/` you'll get
+**`Cannot find package 'dotenv'`** when starting the server, because
+`server.js` lives at the root and resolves modules from there.
+
+### 3. Configure environment
+
+```bash
 cp .env.local.example .env.local
 ```
 
-Then open the `.env.local` file and fill in the relevant API keys:
+Then open `.env.local` and fill in the keys:
 
 ```dotenv
 # --- Google Maps Platform (client-side) ---
@@ -140,42 +188,72 @@ VITE_GOOGLE_SOLAR_KEY=        # Solar API (falls back to MAPS_KEY)
 # --- Server-side AI keys (no VITE_ prefix; never bundled) ---
 TAVILY_API_KEY=
 GEMINI_API_KEY=
-GRADIUM_API_KEY=
+GRADIUM_API_KEY=              # optional — only needed for voice STT
 ```
 
+`.env.local` lives at the **project root**, not inside `webapp/`. Vite is
+configured with `envDir: '..'` so it picks up the same file the Express
+server reads. Don't move it.
+
 The three server-side keys (Tavily / Gemini / Gradium) deliberately omit
-the `VITE_` prefix so they stay out of the client bundle. They are read at
-request time by the Express server (`server.js`) and injected into upstream
-API calls.
+the `VITE_` prefix so they never reach the client bundle. They are read
+at request time by the Express server (`server.js`) and injected into
+upstream API calls.
 
 ---
 
-## Run
+## Run (development)
 
-The app needs **two processes** during development:
+You need **two terminals**:
 
 ```bash
 # Terminal 1 — Express backend on :3001
 #   serves /api/tavily/search, /api/gemini/extract, /api/gemini/chat,
 #   and the /api/gradium/stt WebSocket
-npm run dev:server
+node server.js
+# (or:  npm run dev:server)
+```
 
+```bash
 # Terminal 2 — Vite frontend on :5173
 #   proxies /api/* requests through to :3001 (including WebSocket upgrades)
+cd webapp
 npm run dev
 ```
 
 Open <http://localhost:5173>.
 
-### Production build
+### Common gotchas
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Cannot find package 'dotenv'` when starting `server.js` | `npm install` was only run in `webapp/` | Run `npm install` at the project root, or use `npm run install:all` |
+| `VITE_GOOGLE_MAPS_KEY is not set; Maps + Places will fail.` | `.env.local` is missing or in the wrong place | The file must sit at the **project root**, not inside `webapp/`. Vite reads it via `envDir: '..'` |
+| `cannot read file tsconfig.json` from `npm run build` at root | tsc looking at the root, not `webapp/` | Build from `webapp/`: `cd webapp && npm run build` |
+| `403 Your API key was reported as leaked.` from Gemini | Google's automatic leak detection revoked the key | Generate a new one at <https://aistudio.google.com/apikey> and replace `GEMINI_API_KEY` in `.env.local` |
+
+---
+
+## Production build
 
 ```bash
-npm run build
-npm run start    # serves the built bundle through the same Express server
+cd webapp
+npm run build           # outputs to webapp/dist/
+cd ..
+node server.js          # serves webapp/dist + the /api/* routes
 ```
 
-For a single-process production deployment, `npm run start` runs `server.js`
-which both serves the static bundle and handles all `/api/*` routes.
+Or via the one-shot scripts at the root:
+
+```bash
+npm run build           # delegates to webapp build
+npm run start           # node server.js
+```
+
+For a single-process deployment (Railway / Fly / a small VM) `node
+server.js` both serves the static bundle and handles every `/api/*`
+route, including the Gradium WebSocket upgrade. `railway.json` is set
+up for this — Railway runs `npm run start` from the project root.
 
 ---
 
