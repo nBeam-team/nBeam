@@ -5,7 +5,14 @@
  * financial projection, terms, signatures.
  */
 import { useState } from 'react';
-import { RoiChart } from './RoiChart';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { fmtEur, fmtNumber } from '../lib/format';
 import { staticMapUrl } from '../lib/staticMap';
 import type { SystemDesign } from '../lib/types';
@@ -37,10 +44,18 @@ export function PrintProposal({ design }: Props) {
       {/* 1. HEADER */}
       <header className="flex items-start justify-between pb-4 border-b border-ink/40">
         <div>
-          <p className="font-serif text-[20px] font-medium tracking-tightest leading-none">
-            ☉ nbeam
-          </p>
-          <p className="nb-eyebrow text-[9px] mt-1">solar &amp; storage proposal</p>
+          <div className="flex items-center gap-2 leading-none">
+            <svg width="22" height="22" viewBox="0 0 100 100" aria-hidden>
+              <path d="M 0 8 Q 0 0 8 0 L 47 0 Q 50 50 0 47 L 0 8 Z" fill="#2A6D5C" />
+              <path d="M 53 0 L 92 0 Q 100 0 100 8 L 100 47 Q 50 50 53 0 Z" fill="#DEA126" />
+              <path d="M 53 100 L 92 100 Q 100 100 100 92 L 100 53 Q 50 50 53 100 Z" fill="#2A6D5C" />
+              <path d="M 0 53 L 0 92 Q 0 100 8 100 L 47 100 Q 50 50 0 53 Z" fill="#DEA126" />
+            </svg>
+            <span className="font-serif text-[20px] font-semibold tracking-tight">
+              nBeam
+            </span>
+          </div>
+          <p className="nb-eyebrow text-[9px] mt-1.5">solar &amp; storage proposal</p>
         </div>
         <div className="text-right">
           <p className="text-[10px] uppercase tracking-[0.18em] text-ink-500">project</p>
@@ -67,8 +82,12 @@ export function PrintProposal({ design }: Props) {
         <div>
           <p className="nb-eyebrow text-[9px]">prepared by</p>
           <div className="mt-2 text-[12px] leading-relaxed">
-            <p className="font-medium text-ink">[Installer name]</p>
-            <p className="italic text-ink-400">add company details in your CRM template</p>
+            <p className="font-medium text-ink">Reonic Solar GmbH</p>
+            <p>Berliner Straße 142, 10115 Berlin</p>
+            <p>+49 30 4012 8870 · hello@reonic.de</p>
+            <p className="text-[10px] text-ink-500 mt-1">
+              Master HWK certified · Reg. DE-SOL-2024-0042 · VAT DE369221877
+            </p>
           </div>
         </div>
       </section>
@@ -208,8 +227,12 @@ export function PrintProposal({ design }: Props) {
             tone="strong"
           />
         </div>
-        <div className="border border-ink/20 rounded-md bg-paper">
-          <RoiChart data={design.roi} paybackYear={design.paybackYears} />
+        <div className="border border-ink/20 rounded-md bg-paper p-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-ink-500 mb-1">
+            twenty-five years
+          </p>
+          <p className="font-serif italic text-[14px] text-ink mb-2">cumulative net</p>
+          <PrintRoiChart data={design.roi} paybackYear={design.paybackYears} />
         </div>
         <p className="text-[10px] italic text-ink-500 mt-1.5">
           assumes {design.inputs.energyPriceIncreasePct.toFixed(1)}%/yr price escalation,{' '}
@@ -266,7 +289,7 @@ export function PrintProposal({ design }: Props) {
 
       {/* Footer */}
       <footer className="mt-10 pt-3 border-t border-ink/30 flex items-baseline justify-between text-[9px] text-ink-400 italic font-serif">
-        <span>nbeam · estimates only — for a binding quote contact a certified installer</span>
+        <span>nBeam · estimates only — for a binding quote contact a certified installer</span>
         <span className="tabular-nums">{design.inputs.projectId}</span>
       </footer>
     </div>
@@ -367,6 +390,82 @@ function SignatureBlock({ label }: { label: string }) {
       <p className="text-[9px]">name</p>
       <div className="border-b border-ink mt-8 mb-1" />
       <p className="text-[9px]">date</p>
+    </div>
+  );
+}
+
+/**
+ * Fixed-size ROI chart for the print pipeline. ResponsiveContainer doesn't
+ * work here because the print-only ancestor is `display:none` until the
+ * print dialog opens, so the parent box measures 0×0 and the responsive
+ * chart never renders. Using fixed pixel dimensions sidesteps that entirely.
+ */
+function PrintRoiChart({
+  data,
+  paybackYear,
+}: {
+  data: { year: number; cumulative: number }[];
+  paybackYear: number;
+}) {
+  return (
+    <div className="overflow-hidden">
+      <AreaChart
+        width={640}
+        height={200}
+        data={data}
+        margin={{ top: 4, right: 12, left: 8, bottom: 0 }}
+      >
+        <defs>
+          <linearGradient id="printRoiFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#C44A2C" stopOpacity={0.32} />
+            <stop offset="100%" stopColor="#C44A2C" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke="#EBE0CC" vertical={false} />
+        <XAxis
+          dataKey="year"
+          tickLine={false}
+          axisLine={{ stroke: '#E0D3BC' }}
+          tick={{ fill: '#6B5D54', fontSize: 10 }}
+          ticks={[0, 5, 10, 15, 20, 25]}
+          unit="y"
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tick={{ fill: '#6B5D54', fontSize: 10 }}
+          tickFormatter={(v: number) =>
+            Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
+          }
+          width={42}
+        />
+        <ReferenceLine y={0} stroke="#B5A89B" strokeDasharray="3 3" />
+        {paybackYear > 0 && paybackYear <= 25 ? (
+          <ReferenceLine
+            x={paybackYear}
+            stroke="#5D7253"
+            strokeWidth={1.4}
+            strokeDasharray="4 4"
+            label={{
+              value: 'break-even',
+              position: 'insideTopLeft',
+              fill: '#5D7253',
+              fontSize: 10,
+              fontStyle: 'italic',
+              fontFamily: 'Fraunces, serif',
+            }}
+          />
+        ) : null}
+        <Area
+          type="monotone"
+          dataKey="cumulative"
+          stroke="#C44A2C"
+          strokeWidth={2}
+          fill="url(#printRoiFill)"
+          isAnimationActive={false}
+          dot={false}
+        />
+      </AreaChart>
     </div>
   );
 }

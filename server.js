@@ -159,9 +159,23 @@ app.post('/api/gemini/extract', async (req, res) => {
       }
     );
     const data = await upstream.json();
+    if (!upstream.ok) {
+      console.error('[gemini extract] upstream', upstream.status, data?.error?.message ?? data);
+      return res.status(upstream.status).json({
+        error: data?.error?.message ?? `gemini ${upstream.status}`,
+      });
+    }
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-    res.status(200).json({ fields: JSON.parse(raw) });
+    let fields;
+    try {
+      fields = JSON.parse(raw);
+    } catch (e) {
+      console.error('[gemini extract] invalid JSON output:', raw.slice(0, 200));
+      return res.status(502).json({ error: 'invalid model output' });
+    }
+    res.status(200).json({ fields });
   } catch (e) {
+    console.error('[gemini extract] crash:', e);
     res.status(502).json({ error: String(e) });
   }
 });
@@ -224,7 +238,7 @@ const httpServer = createServer(app);
 // Use 'ws' library for robust WebSocket proxying
 const wss = new WebSocketServer({ noServer: true });
 
-wss.on('connection', (clientWs, request) => {
+wss.on('connection', (clientWs) => {
   const apiKey = process.env.GRADIUM_API_KEY;
   if (!apiKey) {
     console.error('[gradium] GRADIUM_API_KEY missing');
@@ -234,24 +248,34 @@ wss.on('connection', (clientWs, request) => {
 
   console.log('[gradium] Opening upstream connection...');
 
-  // Connect to Gradium
   const upstreamWs = new WebSocket('wss://eu.api.gradium.ai/api/speech/asr', {
     headers: { 'x-api-key': apiKey }
   });
 
+  // The client sends its setup frame the moment its WebSocket opens, but the
+  // upstream socket is still in CONNECTING. Buffer messages until upstream
+  // is OPEN, then flush.
+  const pending = [];
+
   upstreamWs.on('open', () => {
-    console.log('[gradium] Upstream connected');
+    console.log('[gradium] Upstream connected, flushing', pending.length, 'queued frame(s)');
+    for (const { data, binary } of pending) {
+      upstreamWs.send(data, { binary });
+    }
+    pending.length = 0;
   });
 
-  upstreamWs.on('message', (data) => {
+  upstreamWs.on('message', (data, isBinary) => {
     if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(data.toString());
+      clientWs.send(data, { binary: isBinary });
     }
   });
 
-  clientWs.on('message', (data) => {
+  clientWs.on('message', (data, isBinary) => {
     if (upstreamWs.readyState === WebSocket.OPEN) {
-      upstreamWs.send(data.toString());
+      upstreamWs.send(data, { binary: isBinary });
+    } else if (upstreamWs.readyState === WebSocket.CONNECTING) {
+      pending.push({ data, binary: isBinary });
     }
   });
 
@@ -266,12 +290,12 @@ wss.on('connection', (clientWs, request) => {
   });
 
   upstreamWs.on('error', (err) => {
-    console.error('[gradium] Upstream error:', err);
+    console.error('[gradium] Upstream error:', err.message);
     clientWs.close(1011, 'Upstream error');
   });
 
   clientWs.on('error', (err) => {
-    console.error('[gradium] Client error:', err);
+    console.error('[gradium] Client error:', err.message);
     upstreamWs.close();
   });
 });

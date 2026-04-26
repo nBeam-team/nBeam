@@ -144,7 +144,13 @@ export function useGradiumStt() {
     };
 
     ws.onerror = () => { setState('error'); teardownRef.current(); };
-    ws.onclose = () => { stream.getTracks().forEach(t => t.stop()); };
+    // When the upstream closes (after end_of_stream), transition out of
+    // 'processing' so the mic button doesn't appear stuck.
+    ws.onclose = () => {
+      stream.getTracks().forEach(t => t.stop());
+      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+      setState((s) => (s === 'idle' || s === 'error') ? s : 'idle');
+    };
   }, []);
 
   const stop = useCallback(() => {
@@ -156,11 +162,13 @@ export function useGradiumStt() {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'end_of_stream' }));
     }
-    // Fallback: go idle if server doesn't reply within 10s
+    // Most providers either send 'flushed' or close the socket within ~1s
+    // after 'end_of_stream'. Tear down quickly so the UI doesn't sit in
+    // 'processing' forever.
     timeoutRef.current = setTimeout(() => {
       teardownRef.current();
       setState('idle');
-    }, 10_000);
+    }, 1500);
   }, []);
 
   const cancel = useCallback(() => {

@@ -20,7 +20,12 @@ function App() {
   const [mode, setMode] = useState<Mode>('describe');
 
   const handleFormSubmit = (next: FormInputs, m: Mode, t?: string) => {
+    // Drop any stale design/insights from a previous run. The "tweak the
+    // design" flow uses onBackToConfig (which doesn't pass through here)
+    // and keeps state intact for the same project.
     setInputs(next);
+    setSystem(null);
+    setInsights(null);
     setMode(m);
     if (t !== undefined) setText(t);
     setView('loading');

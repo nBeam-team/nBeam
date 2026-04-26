@@ -377,25 +377,89 @@ export function SolarConfig({ inputs, initial, onContinue, onBack }: Props) {
               </div>
 
               {/* AI Chat Map Command */}
-              <div className="flex items-center gap-2 bg-paper-light border border-hairline rounded-full px-4 py-2 mt-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleChatCommand(); }}
-                  placeholder="Ask AI to modify layout (e.g. 'remove 3 panels from the north')"
-                  className="flex-1 bg-transparent outline-none text-[13px] font-serif text-ink placeholder:text-ink-300"
-                  disabled={chatLoading}
+              <section className="relative bg-ink rounded-2xl p-5 mt-3 shadow-card overflow-hidden">
+                {/* Soft terracotta glow in the corner */}
+                <div
+                  aria-hidden
+                  className="absolute -top-12 -right-12 w-40 h-40 rounded-full pointer-events-none"
+                  style={{
+                    background:
+                      'radial-gradient(circle, rgba(196,74,44,0.35) 0%, transparent 70%)',
+                  }}
                 />
-                <button
-                  type="button"
-                  onClick={handleChatCommand}
-                  disabled={chatLoading || !chatInput.trim()}
-                  className="text-[12px] uppercase tracking-[0.1em] font-medium text-terracotta disabled:opacity-50"
-                >
-                  {chatLoading ? 'Thinking...' : 'Apply'}
-                </button>
-              </div>
+
+                <div className="relative">
+                  <div className="flex items-baseline justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-terracotta text-paper-light">
+                        <ChatSparkle />
+                      </span>
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-paper-light/70 font-medium">
+                        ai assistant
+                      </p>
+                    </div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-paper-light/40">
+                      via gemini
+                    </p>
+                  </div>
+
+                  <h3 className="font-serif italic text-[20px] md:text-[22px] text-paper-light leading-tight">
+                    Modify the layout.
+                  </h3>
+                  <p className="text-[12px] text-paper-light/60 mt-1">
+                    Say what you want changed — I'll add or remove panels on the map.
+                  </p>
+
+                  <div className="mt-4 flex items-center gap-2 bg-paper-light/8 border border-paper-light/12 rounded-full pl-4 pr-1 py-1 transition-colors focus-within:bg-paper-light/12 focus-within:border-paper-light/25">
+                    <span className="text-paper-light/40 text-[14px] font-serif italic select-none" aria-hidden>
+                      ›
+                    </span>
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleChatCommand();
+                      }}
+                      placeholder="remove 3 panels from the north…"
+                      className="flex-1 bg-transparent outline-none py-2.5 text-[14px] font-serif italic text-paper-light placeholder:text-paper-light/35 disabled:opacity-50"
+                      disabled={chatLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleChatCommand}
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="group inline-flex items-center gap-2 pl-4 pr-3 h-9 rounded-full bg-terracotta text-paper-light text-[12px] font-medium uppercase tracking-[0.12em] shadow-sm transition-all duration-200 hover:bg-terracotta-dark hover:-translate-y-0.5 active:translate-y-0 disabled:bg-paper-light/15 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                    >
+                      <span>{chatLoading ? 'thinking' : 'apply'}</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5">
+                        {chatLoading ? <ChatSpinner /> : <ChatArrow />}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-paper-light/40">
+                      try
+                    </span>
+                    {[
+                      'remove 3 panels from the north',
+                      'remove 5 from the south',
+                      'clear the east side',
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => setChatInput(suggestion)}
+                        disabled={chatLoading}
+                        className="text-[12px] italic font-serif text-paper-light/70 hover:text-paper-light transition-colors underline-offset-4 decoration-paper-light/20 hover:decoration-terracotta hover:decoration-2 underline disabled:opacity-50"
+                      >
+                        “{suggestion}”
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
 
               {/* Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -661,5 +725,48 @@ function Footline({ label, value }: { label: string; value: string }) {
       <span className="text-paper-light/55">{label}</span>
       <span className="font-serif italic text-paper-light tabular-nums">{value}</span>
     </div>
+  );
+}
+
+function ChatSparkle() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 1.5v2.5M8 12v2.5M14.5 8H12M4 8H1.5M12.6 3.4l-1.8 1.8M5.2 10.8l-1.8 1.8M12.6 12.6l-1.8-1.8M5.2 5.2 3.4 3.4"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ChatArrow() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M2.5 7h9m0 0L7.5 3m4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChatSpinner() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" className="animate-spin" aria-hidden>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.6" fill="none" opacity="0.3" />
+      <path
+        d="M8 2a6 6 0 0 1 6 6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
   );
 }
