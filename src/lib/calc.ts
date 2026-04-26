@@ -346,19 +346,12 @@ export function design(
   const inflation = inputs.energyPriceIncreasePct
     ? inputs.energyPriceIncreasePct / 100
     : DEFAULT_ELECTRICITY_INFLATION;
-  const annualBillEur = annualDemand * inputs.energyPricePerKwh;
-  const roi: { year: number; cumulative: number; baseline: number }[] = [];
+  const roi: { year: number; cumulative: number }[] = [];
   let cum = -cost.total;
-  let baselineCum = 0;
-  roi.push({ year: 0, cumulative: cum, baseline: baselineCum });
+  roi.push({ year: 0, cumulative: cum });
   for (let y = 1; y <= 25; y++) {
     cum += annualSavingsEur * Math.pow(1 + inflation, y - 1);
-    baselineCum -= annualBillEur * Math.pow(1 + inflation, y - 1);
-    roi.push({
-      year: y,
-      cumulative: Math.round(cum),
-      baseline: Math.round(baselineCum),
-    });
+    roi.push({ year: y, cumulative: Math.round(cum) });
   }
 
   return {

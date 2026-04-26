@@ -36,9 +36,7 @@ export function PrintProposal({ design }: Props) {
     year: 'numeric',
   });
 
-  const lastRoi = design.roi[design.roi.length - 1];
-  const totalRoi = lastRoi?.cumulative ?? 0;
-  const totalSavedVsBaseline = lastRoi ? lastRoi.cumulative - lastRoi.baseline : 0;
+  const totalRoi = design.roi[design.roi.length - 1]?.cumulative ?? 0;
   const mapUrl = staticMapUrl(design, { width: 900, height: 540, zoom: 20 });
 
   return (
@@ -46,10 +44,18 @@ export function PrintProposal({ design }: Props) {
       {/* 1. HEADER */}
       <header className="flex items-start justify-between pb-4 border-b border-ink/40">
         <div>
-          <p className="font-serif text-[20px] font-medium tracking-tightest leading-none">
-            ☉ nbeam
-          </p>
-          <p className="nb-eyebrow text-[9px] mt-1">solar &amp; storage proposal</p>
+          <div className="flex items-center gap-2 leading-none">
+            <svg width="22" height="22" viewBox="0 0 100 100" aria-hidden>
+              <path d="M 0 8 Q 0 0 8 0 L 47 0 Q 50 50 0 47 L 0 8 Z" fill="#2A6D5C" />
+              <path d="M 53 0 L 92 0 Q 100 0 100 8 L 100 47 Q 50 50 53 0 Z" fill="#DEA126" />
+              <path d="M 53 100 L 92 100 Q 100 100 100 92 L 100 53 Q 50 50 53 100 Z" fill="#2A6D5C" />
+              <path d="M 0 53 L 0 92 Q 0 100 8 100 L 47 100 Q 50 50 0 53 Z" fill="#DEA126" />
+            </svg>
+            <span className="font-serif text-[20px] font-semibold tracking-tight">
+              nBeam
+            </span>
+          </div>
+          <p className="nb-eyebrow text-[9px] mt-1.5">solar &amp; storage proposal</p>
         </div>
         <div className="text-right">
           <p className="text-[10px] uppercase tracking-[0.18em] text-ink-500">project</p>
@@ -216,14 +222,11 @@ export function PrintProposal({ design }: Props) {
             value={`${design.paybackYears.toFixed(1)} years`}
           />
           <Projection
-            label="25-year saved vs no solar"
-            value={fmtEur(totalSavedVsBaseline)}
+            label="25-year cumulative"
+            value={fmtEur(totalRoi)}
             tone="strong"
           />
         </div>
-        <p className="text-[10px] italic text-ink-500 mt-1 mb-3">
-          Net cash position after 25 years: {fmtEur(totalRoi)}.
-        </p>
         <div className="border border-ink/20 rounded-md bg-paper p-3">
           <p className="text-[10px] uppercase tracking-[0.18em] text-ink-500 mb-1">
             twenty-five years
@@ -286,7 +289,7 @@ export function PrintProposal({ design }: Props) {
 
       {/* Footer */}
       <footer className="mt-10 pt-3 border-t border-ink/30 flex items-baseline justify-between text-[9px] text-ink-400 italic font-serif">
-        <span>nbeam · estimates only — for a binding quote contact a certified installer</span>
+        <span>nBeam · estimates only — for a binding quote contact a certified installer</span>
         <span className="tabular-nums">{design.inputs.projectId}</span>
       </footer>
     </div>
@@ -401,25 +404,21 @@ function PrintRoiChart({
   data,
   paybackYear,
 }: {
-  data: { year: number; cumulative: number; baseline: number }[];
+  data: { year: number; cumulative: number }[];
   paybackYear: number;
 }) {
   return (
     <div className="overflow-hidden">
       <AreaChart
         width={640}
-        height={210}
+        height={200}
         data={data}
         margin={{ top: 4, right: 12, left: 8, bottom: 0 }}
       >
         <defs>
           <linearGradient id="printRoiFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#C44A2C" stopOpacity={0.32} />
-            <stop offset="100%" stopColor="#C44A2C" stopOpacity={0.04} />
-          </linearGradient>
-          <linearGradient id="printBaselineFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5D4A5C" stopOpacity={0.04} />
-            <stop offset="100%" stopColor="#5D4A5C" stopOpacity={0.18} />
+            <stop offset="100%" stopColor="#C44A2C" stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid stroke="#EBE0CC" vertical={false} />
@@ -459,16 +458,6 @@ function PrintRoiChart({
         ) : null}
         <Area
           type="monotone"
-          dataKey="baseline"
-          stroke="#5D4A5C"
-          strokeWidth={1.4}
-          strokeDasharray="5 4"
-          fill="url(#printBaselineFill)"
-          isAnimationActive={false}
-          dot={false}
-        />
-        <Area
-          type="monotone"
           dataKey="cumulative"
           stroke="#C44A2C"
           strokeWidth={2}
@@ -477,18 +466,6 @@ function PrintRoiChart({
           dot={false}
         />
       </AreaChart>
-      <div className="flex items-baseline gap-5 px-2 mt-1 text-[10px] font-serif italic text-ink-500">
-        <span className="inline-flex items-baseline gap-1.5">
-          <span className="inline-block w-3 h-0.5 bg-terracotta align-middle" /> with solar
-        </span>
-        <span className="inline-flex items-baseline gap-1.5">
-          <span
-            className="inline-block w-3 align-middle border-t border-dashed"
-            style={{ borderColor: '#5D4A5C', borderTopWidth: 1.4 }}
-          />{' '}
-          without solar
-        </span>
-      </div>
     </div>
   );
 }

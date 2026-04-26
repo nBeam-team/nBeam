@@ -122,14 +122,7 @@ export interface SystemDesign {
   co2ReductionTons: number;
   roofAreaM2: number;
   roofUtilizationPct: number;
-  /**
-   * Year-by-year cumulative net cash flow.
-   * - `cumulative`: with the solar system installed (negative upfront, then climbing).
-   * - `baseline`: cumulative grid-electricity spend if the customer does nothing
-   *   (kept in step with the same inflation rate). Negative throughout.
-   * The gap between the two at year 25 is the lifetime savings versus baseline.
-   */
-  roi: { year: number; cumulative: number; baseline: number }[];
+  roi: { year: number; cumulative: number }[];
   budgetLimited: boolean;
 }
 
