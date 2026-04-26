@@ -4,31 +4,33 @@
 
 **nBeam** is a Solar CPQ tool that takes a solar installer from "first phone
 call" to "signed proposal PDF" in a few minutes. It combines high-resolution
-satellite roof analysis (Google Solar API), structured AI extraction
-(Gemini), real-time regional market intelligence (Tavily), and voice intake
-(Gradium) into a single editor-grade workflow. The result is a formal,
+satellite roof analysis (Google Solar API), multimodal AI for data structuring 
+and real-time satellite image manipulation (Gemini), 
+real-time regional market intelligence (Tavily), and voice interaction
+(Gradium) into a single editor-grade workflow. The delivers a formal,
 fully-priced proposal with a Bill of Materials, ROI projection vs. baseline,
 and a satellite screenshot of the proposed panel layout.
 
 ---
 
-## What it does (3-step demo flow)
+## What it does (3-step flow)
 
-1. **Customer intake** — pick one of three modes:
-   - **Paste / drop** a CRM record (JSON / CSV / Excel TSV) and we map it
-     onto the schema.
-   - **Describe in words** the customer in a free-form sentence (or dictate
-     it via Gradium voice). One click sends to Gemini, which extracts
-     `customerName`, `customerAddress`, `energyDemandKwh`, etc. and
-     auto-populates the form.
-   - **Step by step** — sliders for manual control.
-2. **Solar configuration** — Google Solar API returns roof geometry and the
-   exact panel positions for the address. The installer adjusts the array
-   on a live satellite map (panel slider, lasso add / remove, plain-English
-   chat command), watches the financial KPIs update, and toggles the
-   irradiance heatmap (rendered client-side from a GeoTIFF).
-3. **Proposal** — a print-ready, multi-section PDF with executive summary,
-   property + Static-Maps screenshot, line-item BOM, 25-year ROI chart
+1. **Customer data intake** — Build the customer profile using either of the three modes:
+   - **Drag n Drop** a CRM record (JSON / CSV / Excel TSV) and we map it onto the schema.
+   - **Describe in plain language** the customer info in a free-form sentences or simply dictate
+     it via Gradium voice). Using Gemini, this is structured into relevant params such as
+     `customerName`, `customerAddress`, `energyDemandKwh`, and so on.
+   - **Step by step** — Input data into the structured fields for manual control.
+2. **Solar configuration** — Google Solar API returns roof geometry for the input address,
+   along with the max solar placement capacity along with optimal pitch and angular tilt for maximal efficiency.
+   The installer can also modify and adjust the suggested panel placement on the satellite map, such as marking obstructions zones and adding panels in a specifc area, to maximize the power generation based on the irradiance heatmap. Or simply ask Gemini to handle this.
+   It also delivers a simulation of the typical energy consumption in the household, and the optimal battery capacity to store the excess generated power.
+   Further, the user has additional controls for the parameters to derive the optimal quotation based on the cutomer needs.
+   It provides real-time tracking for the energy generation capacity, cost savings, as well as time to recover the installation costs. 
+   Additionally, the installer has an overview of the financial KPIs and market updates provided by Tavily API.
+   Thus, it delivers all the critical information in one place to help the installer make informed decisions acccutately and fast, while automating the tedious       manual processes so the installer can engage and cater better to the customer needs.
+4. **Proposal** — a print-ready, multi-section quotation with an executive summary,
+   property details wih screenshots of the optimal panel layout, line-item BOM, 25-year ROI chart
    (with-solar vs. no-solar comparison), terms, and signature blocks.
 
 ---
@@ -37,38 +39,41 @@ and a satellite screenshot of the proposed panel layout.
 
 | Partner | Role in nBeam | Where in the app |
 |---|---|---|
-| **Gradium** | Speech-to-text streaming (24 kHz PCM → live transcript) | Mic button in **describe** mode populates the textarea |
-| **Tavily** | Real-time web search synthesis | Six regional-intel cards on every screen (prices, yield, subsidies, install costs, EEG, news) |
 | **Google DeepMind / Gemini 2.5 Flash** | Structured data extraction + function-calling | "Extract with Gemini" on describe mode; "Modify the layout" chat command on the map |
 | **Google Maps Platform** | Address autocomplete, satellite tiles, PDF screenshot | Step-1 Places autocomplete, step-2 satellite viewer, PDF rooftop screenshot |
 | **Google Solar API** | Building geometry, panel candidates, irradiance | Roof outline, draggable panel array, annual-flux heatmap |
+| **Gradium** | Speech-to-text streaming (24 kHz PCM → live transcript) | Mic button in **describe** mode populates the textarea |
+| **Tavily** | Real-time web search synthesis | Six regional-intel cards on every screen (prices, yield, subsidies, install costs, EEG, news) |
+
 
 ### Detailed roles
 
-#### 1. Gradium
-Gradium was used to add **speech-to-text (STT) functionality** to the app,
-allowing users to dictate customer information instead of typing it. The
-implementation includes a WebSocket connection to Gradium's API that streams
-microphone audio and returns real-time transcription. This feature was
-integrated into the text input mode, with a microphone button that lets
-users record voice and automatically populate the customer description
-field.
-
-#### 2. Tavily
-Tavily is used as a search API proxy in the Vite development server. It
-forwards search requests from the client to Tavily's search API
-(`api.tavily.com`) with the configured API key, providing web search
-capabilities for the application. It looks for Solar news in the area and
-lists them as additional information for the PV installer.
-
-#### 3. Google DeepMind / Google Maps Platform
-Google DeepMind (specifically the Gemini model) is used for AI-powered data
-extraction. The proxy at `/api/gemini/extract` takes free-form text
+#### 1. Google DeepMind / Google Maps Platform
+Google's frontier AI, Gemini, powers the data extraction and multimodal interactions for optmizing the solar panel placement as per the user's needs. 
+The API proxy at `/api/gemini/extract` takes free-form text
 descriptions of residential customers and uses **Gemini 2.5 Flash** to
 extract structured data matching a defined schema (customer details, energy
-usage, solar / storage equipment, etc.). Additionally, **Google APIs — Maps
-API, Solar API** — are used for fetching map data and solar-related data to
+usage, solar / storage equipment, etc.).
+**Gemini 2.5 Pro** handles the interactions with the satellite rooftop image for placing panels per the user requests.
+Finally, **Google APIs — Maps API, Solar API** — are used for fetching map data and solar-related data to
 support the solar configuration and proposal generation features.
+Thus, it powers the core functionality of our tool.
+
+#### 2. Gradium
+Gradium provides the **speech-to-text (STT) functionality**,
+allowing users to dictate customer information instead of typing it. The
+implementation includes a WebSocket connection to Gradium's API that streams
+microphone audio and returns real-time transcription. This feature is
+integrated into the free-form text input mode that lets
+users record voice and automatically populate the customer description
+field via a microphone button.
+
+#### 3. Tavily
+Tavily provides the Web search API proxy in the Vite development server. It
+forwards search requests from the client to Tavily's secure search API
+(`api.tavily.com`) with the configured API key, providing web search
+capabilities for the application. It extracts the recent news regarding solar in the concerned location and
+lists them as additional information for the PV installer.
 
 ---
 
@@ -89,16 +94,14 @@ support the solar configuration and proposal generation features.
 
 ---
 
-## Prerequisites
+## Prerequisites for running the tool locally
 
 - **Node.js 20+** and **npm 10+**
-- A **Google Cloud Platform project with billing enabled** (free $200/month
-  Maps Platform credit covers a hackathon's usage easily).
-- A **Tavily API key** — free dev tier works (`tvly-dev-...`).
-- A **Google Gemini API key** — free tier works
-  ([https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
-- A **Gradium API key** — required only for the voice-input feature
-  (`gsk_...`). The rest of the app works without it.
+- **Google Cloud Platform project with billing enabled**
+- **Tavily API key**
+- **Google Gemini API key**
+- **Gradium API key**
+- 
 
 ### Google APIs to enable on your Maps Platform key
 
@@ -122,12 +125,11 @@ Google Cloud Console.
 ```bash
 git clone https://github.com/nBeam-team/nBeam.git
 cd nBeam
-git checkout final_webapp     # or whichever branch is the latest
 npm install
 cp .env.local.example .env.local
 ```
 
-Then open `.env.local` and fill in:
+Then open the `.env.local` file and fill in the relevant API keys:
 
 ```dotenv
 # --- Google Maps Platform (client-side) ---
@@ -200,6 +202,7 @@ which both serves the static bundle and handles all `/api/*` routes.
                 │ api.tavily.com          │ │ wss://eu.api.gradium  │
                 │ generativelanguage…     │ │ .ai/api/speech/asr    │
                 └─────────────────────────┘ └───────────────────────┘
+e
 ```
 
 ### Notable implementation details
