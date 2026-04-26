@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useMemo } from 'react';
 import { NL_EXAMPLE, parseNaturalLanguage, type ParsedInputs } from '../lib/parse';
 import { useAiParse } from '../lib/useAiParse';
+import { useGradiumStt, type SttState } from '../lib/useGradiumStt';
 import { fmtEur, fmtNumber } from '../lib/format';
 
 interface BodyProps {
@@ -30,6 +31,11 @@ export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }
   useEffect(() => {
     if (onAiLoadingChange) onAiLoadingChange(ai.loading);
   }, [ai.loading, onAiLoadingChange]);
+
+  const stt = useGradiumStt();
+  useEffect(() => {
+    if (stt.transcript) onTextChange(stt.transcript);
+  }, [stt.transcript, onTextChange]);
 
   const chips = buildChips(merged);
   const totalKnown = chips.length;
@@ -93,22 +99,25 @@ export function TextModeBody({ text, onTextChange, onParsed, onAiLoadingChange }
 
       {/* Manual extraction trigger */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={ai.trigger}
-          disabled={buttonDisabled}
-          className="group inline-flex items-center gap-2 pl-3 pr-4 h-9 rounded-full
-            bg-terracotta text-paper-light text-[13px] font-medium
-            transition-all duration-200 ease-standard
-            hover:bg-terracotta-dark hover:-translate-y-0.5
-            active:translate-y-0
-            disabled:bg-ink-300 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-        >
-          <span className="inline-flex items-center justify-center w-5 h-5">
-            {ai.loading ? <ButtonSpinner /> : <SparkleIcon />}
-          </span>
-          <span className="font-serif italic">{buttonLabel}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <MicButton state={stt.state} onToggle={stt.toggle} active={!!stt.transcript} />
+          <button
+            type="button"
+            onClick={ai.trigger}
+            disabled={buttonDisabled}
+            className="group inline-flex items-center gap-2 pl-3 pr-4 h-9 rounded-full
+              bg-terracotta text-paper-light text-[13px] font-medium
+              transition-all duration-200 ease-standard
+              hover:bg-terracotta-dark hover:-translate-y-0.5
+              active:translate-y-0
+              disabled:bg-ink-300 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+          >
+            <span className="inline-flex items-center justify-center w-5 h-5">
+              {ai.loading ? <ButtonSpinner /> : <SparkleIcon />}
+            </span>
+            <span className="font-serif italic">{buttonLabel}</span>
+          </button>
+        </div>
         <p className="text-[11px] italic font-serif text-ink-400 max-w-sm leading-snug">
           {empty
             ? 'type or paste a description, then click to extract.'
@@ -284,5 +293,47 @@ function ButtonSpinner() {
       <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.6" fill="none" opacity="0.3" />
       <path d="M8 2a6 6 0 0 1 6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
     </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="5" y="1" width="6" height="8" rx="3" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M3 8a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="8" y1="13" x2="8" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MicButton({ state, onToggle, active }: { state: SttState; onToggle: () => void; active?: boolean }) {
+  const busy = state === 'connecting';
+  const showSpinner = state === 'connecting' || state === 'processing';
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={busy}
+      title={
+        state === 'recording' ? 'stop recording'
+        : state === 'processing' ? 'cancel'
+        : 'record voice'
+      }
+      className={`inline-flex items-center justify-center w-9 h-9 rounded-full
+        transition-all duration-200 ease-standard border
+        disabled:cursor-not-allowed
+        ${state === 'recording'
+          ? 'bg-terracotta border-terracotta text-paper-light animate-pulse'
+          : state === 'processing'
+            ? 'bg-terracotta border-terracotta text-paper-light'
+            : state === 'error'
+              ? 'border-terracotta-light text-terracotta hover:bg-terracotta-50'
+              : active
+                ? 'bg-terracotta border-terracotta text-paper-light hover:bg-terracotta-dark'
+                : 'border-hairline text-ink-400 hover:border-ink-300 hover:text-ink'
+        }`}
+    >
+      {showSpinner ? <ButtonSpinner /> : <MicIcon />}
+    </button>
   );
 }

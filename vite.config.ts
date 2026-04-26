@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import https from 'node:https';
 
 /**
  * Tavily search proxy. The Vite middleware injects the api_key from
@@ -180,6 +181,81 @@ function geminiProxy(apiKey: string | undefined): Plugin {
   };
 }
 
+function gradiumSttProxy(apiKey: string | undefined): Plugin {
+  return {
+    name: 'nbeam-gradium-stt-proxy',
+    configureServer(server) {
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        if (!req.url?.startsWith('/api/gradium/stt')) return;
+
+        console.log('[gradium] WebSocket upgrade request:', req.url, 'headers:', req.headers);
+
+        if (!apiKey) {
+          console.log('[gradium] No API key configured');
+          socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+
+        // Gradium's API uses wss://eu.api.gradium.ai/api/speech/asr (or similar regional endpoint)
+        // The path should be /api/speech/asr for the STT WebSocket endpoint
+        const upstreamReq = https.request({
+          hostname: 'eu.api.gradium.ai',  // Use regional endpoint
+          port: 443,
+          path: '/api/speech/asr',
+          method: 'GET',
+          headers: {
+            host: 'eu.api.gradium.ai',
+            connection: 'Upgrade',
+            upgrade: 'websocket',
+            'sec-websocket-version': req.headers['sec-websocket-version'] ?? '13',
+            'sec-websocket-key': req.headers['sec-websocket-key'] ?? '',
+            'x-api-key': apiKey,
+          },
+        });
+
+        upstreamReq.on('upgrade', (res, upstreamSocket, upstreamHead) => {
+          console.log('[gradium] Upstream upgrade response:', res.statusCode, res.headers);
+
+          const response =
+            'HTTP/1.1 101 Switching Protocols\r\n' +
+            'Upgrade: websocket\r\n' +
+            'Connection: Upgrade\r\n' +
+            `Sec-WebSocket-Accept: ${res.headers['sec-websocket-accept'] ?? ''}\r\n` +
+            '\r\n';
+          socket.write(response);
+
+          if (upstreamHead?.length) upstreamSocket.unshift(upstreamHead);
+          if (head?.length) socket.unshift(head);
+
+          upstreamSocket.pipe(socket);
+          socket.pipe(upstreamSocket);
+
+          const destroy = () => {
+            console.log('[gradium] Connection destroyed');
+            upstreamSocket.destroy();
+            socket.destroy();
+          };
+          socket.on('error', (e) => console.log('[gradium] Client socket error:', e));
+          upstreamSocket.on('error', (e) => console.log('[gradium] Upstream socket error:', e));
+          socket.on('close', () => {
+            console.log('[gradium] Client socket closed');
+            upstreamSocket.destroy();
+          });
+        });
+
+        upstreamReq.on('error', (e) => {
+          console.log('[gradium] Upstream request error:', e.message);
+          socket.write('HTTP/1.1 502 Bad Gateway\r\n\r\n');
+          socket.destroy();
+        });
+
+        upstreamReq.end();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
@@ -187,6 +263,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tavilyProxy(env.TAVILY_API_KEY),
       geminiProxy(env.GEMINI_API_KEY),
+      gradiumSttProxy(env.GRADIUM_API_KEY),
     ],
   };
 });
